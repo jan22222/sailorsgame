@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sailors & Islands – Lobby</title>
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css"
+      integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk="
+      crossorigin="anonymous"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+
+  <body style="height: 100vh; display:flex; flex-direction:row; align-items:center; justify-content:space-around;">
+    <!-- CREATE -->
+    <div class="join-container">
+      <header class="join-header">
+        <h1>Create a game</h1>
+      </header>
+      <main class="join-main">
+        <form action="settlers.html" method="GET">
+          <input type="hidden" name="mode" value="create" />
+
+          <div class="form-control">
+            <label for="usernameCreate">Player</label>
+            <input type="text" name="username" id="usernameCreate" placeholder="Enter username..." required />
+          </div>
+
+          <div class="form-control">
+            <label for="quantity">Number of players (1 to 5)</label>
+            <input type="number" id="quantity" name="quantity" min="1" max="5" value="2" required />
+          </div>
+
+          <div class="form-control">
+            <label for="roomCreate">Room</label>
+            <input type="text" name="room" id="roomCreate" placeholder="Enter gamename..." required />
+          </div>
+
+          <div class="form-control">
+            <label for="landscape">Choose a landscape type:</label>
+            <select id="landscape" name="landscape">
+              <option value="normal">Normal</option>
+              <option value="desert">Desert (low resources)</option>
+              <option value="water">Islands (water)</option>
+              <option value="rich">Rich</option>
+            </select>
+          </div>
+
+          <div class="form-control">
+            <button type="submit" class="btn">Create</button>
+          </div>
+        </form>
+      </main>
+    </div>
+
+    <div><h2 style="font-size:50px;">OR</h2></div>
+
+    <!-- JOIN (manual) -->
+    <div class="join-container">
+      <header class="join-header">
+        <h1>Join a game</h1>
+      </header>
+      <main class="join-main">
+        <form action="settlers.html" method="GET">
+          <input type="hidden" name="mode" value="join" />
+
+          <div class="form-control">
+            <label for="roomJoin">Room</label>
+            <input type="text" name="room" id="roomJoin" placeholder="Enter gamename..." required />
+          </div>
+
+          <div class="form-control">
+            <label for="usernameJoin">Player</label>
+            <input type="text" name="username" id="usernameJoin" placeholder="Enter username..." required />
+          </div>
+
+          <div class="form-control">
+            <button type="submit" class="btn">Join</button>
+          </div>
+        </form>
+      </main>
+
+      <hr style="margin:18px 0; opacity:0.3" />
+
+      <!-- OPEN GAMES LIST -->
+      <header class="join-header">
+        <h1>Open Games</h1>
+      </header>
+      <main class="join-main">
+        <div id="roomsList" style="display:flex; flex-direction:column; gap:8px;"></div>
+      </main>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qs@6.11.2/dist/qs.js"></script>
+    <script src="/js/lobby.js"></script>
+  </body>
+</html>

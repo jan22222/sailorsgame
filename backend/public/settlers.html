@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css"
+      integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk="
+      crossorigin="anonymous"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+
+    <title>SAILORS & ISLANDS</title>
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700&family=Source+Sans+Pro:wght@700&display=swap"
+      rel="stylesheet"
+    />
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.12/dist/vue.js"></script>
+
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+      integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
+      crossorigin="anonymous"
+    />
+  </head>
+
+  <body style="background: rgb(107, 167, 223)">
+    <pre id="debugState"></pre>
+
+    <div id="app">
+      <header class="chat-header" style="background: rgb(28, 58, 192)">
+        <div id="turnToast" class="turn-toast"></div>
+
+        <div>
+          <div
+            style="
+              height: 80px;
+              width: 80px;
+              background-color: #bbb;
+              border-radius: 50%;
+            "
+          >
+            <img id="scream" src="rocket.png" alt="Boat" width="44" height="54" />
+          </div>
+          <h1>Sailors & Islands</h1>
+        </div>
+
+        <h3>Game Name: {{room}}</h3>
+
+        <h3><i class="fas fa-users"></i></h3>
+
+        <ul
+          id="users"
+          style="
+            width: 50%;
+            display: flex;
+            flex-direction: row;
+            justify-content: space-around;
+          "
+        >
+          <li
+            v-for="(user, index) in userlisto"
+            :class="[colors[index]]"
+            :key="user.username"
+          >
+            {{ user.username }}
+          </li>
+        </ul>
+
+        <a id="leave-btn" class="btn" @click="leave">Leave Room</a>
+      </header>
+
+      <div
+        class="flex-container"
+        style="
+          background: rgb(119, 89, 56);
+          background: linear-gradient(
+            273deg,
+            rgba(119, 89, 56, 1) 0%,
+            rgba(227, 24, 24, 1) 100%,
+            rgba(227, 24, 24, 1) 100%
+          );
+        "
+      >
+<div class="flex-container resource-bar" style="background: rgb(119,89,56);
+background: linear-gradient(273deg, rgba(119,89,56,1) 0%, rgba(227,24,24,1) 100%, rgba(227,24,24,1) 100%);">
+
+
+
+
+
+
+  <!-- metals/erz = resId 1 -->
+  <div class="res-block">
+<counter texto="metals" :coun="erz"    fill="#838383" text-color="#111"></counter>
+    <div class="trade-row">
+      <button class="trade-btn grains" @click="trade(1,2)">→</button>
+      <button class="trade-btn mud"    @click="trade(1,3)">→</button>
+      <button class="trade-btn sheep"  @click="trade(1,4)">→</button>
+      <button class="trade-btn wood"   @click="trade(1,5)">→</button>
+    </div>
+  </div>
+
+  <!-- grains/weizen = resId 2 -->
+  <div class="res-block">
+<counter texto="grains" :coun="weizen" fill="#dbdb00" text-color="#333"></counter>
+    <div class="trade-row">
+      <button class="trade-btn metals" @click="trade(2,1)">→</button>
+      <button class="trade-btn mud"    @click="trade(2,3)">→</button>
+      <button class="trade-btn sheep"  @click="trade(2,4)">→</button>
+      <button class="trade-btn wood"   @click="trade(2,5)">→</button>
+    </div>
+  </div>
+
+  <!-- mud/lehm = resId 3 -->
+  <div class="res-block">
+<counter texto="mud"    :coun="lehm"   fill="#9c7e00" text-color="#222"></counter>
+    <div class="trade-row">
+      <button class="trade-btn metals" @click="trade(3,1)">→</button>
+      <button class="trade-btn grains" @click="trade(3,2)">→</button>
+      <button class="trade-btn sheep"  @click="trade(3,4)">→</button>
+      <button class="trade-btn wood"   @click="trade(3,5)">→</button>
+    </div>
+  </div>
+
+  <!-- sheep/schaf = resId 4 -->
+  <div class="res-block">
+
+<counter texto="sheep"  :coun="schaf"  fill="#a5d02a" text-color="#1a2a00"></counter>
+    <div class="trade-row">
+      <button class="trade-btn metals" @click="trade(4,1)">→</button>
+      <button class="trade-btn grains" @click="trade(4,2)">→</button>
+      <button class="trade-btn mud"    @click="trade(4,3)">→</button>
+      <button class="trade-btn wood"   @click="trade(4,5)">→</button>
+    </div>
+  </div>
+
+  <!-- wood/holz = resId 5 -->
+  <div class="res-block">
+<counter texto="wood"   :coun="holz"   fill="darkgreen" text-color="#eaffea"></counter>
+    <div class="trade-row">
+      <button class="trade-btn metals" @click="trade(5,1)">→</button>
+      <button class="trade-btn grains" @click="trade(5,2)">→</button>
+      <button class="trade-btn mud"    @click="trade(5,3)">→</button>
+      <button class="trade-btn sheep"  @click="trade(5,4)">→</button>
+    </div>
+  </div>
+<h2 v-if="roundsLeft > 15" style="color: white; text-align: center;">
+   AUFBAUPHASE: Platziert eure Schiffe & Boote!
+</h2>
+<counter texto="draw" :coun="Wurf" fill="#ffffff" text-color="#111"></counter>
+<counter 
+  texto="Wurf" 
+  :coun="Wurf === 0 ? '...' : Wurf" 
+  fill="#ffffff" 
+  text-color="#111">
+</counter>
+</div>
+
+
+      </div>
+
+      <div class="flex-container">
+        <div class="chat-container">
+          <main class="chat-main">
+            <div class="chat-messages"></div>
+          </main>
+
+          <div class="chat-form-container">
+            <form id="chat-form" v-on:submit.prevent="onSubmit">
+              <input
+                id="msg"
+                type="text"
+                placeholder="Enter Message"
+                required
+                autocomplete="off"
+              />
+              <button class="btn"><i class="fas fa-paper-plane"></i> Send</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="wrapper-game" style="width: 1400px; height: 1250px">
+          <div id="canvasWrap" style="position:relative; width:1250px; height:1250px;">
+            <canvas id="my-canvas"
+                    style="position:absolute; left:0; top:0; width:1250px; height:1250px; border: 5px double rgb(27, 28, 29); border-radius: 100px;"></canvas>
+
+            <canvas id="overlay-canvas"
+                    style="position:absolute; left:0; top:0; width:1250px; height:1250px; pointer-events:auto;"></canvas>
+          </div>
+        </div>
+
+        <div class="flex-container" style="flex-direction: column; width: 200px">
+          <div>
+            <h1>Player at turn: {{comp}}</h1>
+
+            <counter texto="remaining time" :coun="time"></counter>
+
+             <div style="width: 250px">
+    <h1>Set a boat:</h1>
+    <button
+        @click="houseBuilder"
+        type="button"
+        class="btn btn-primary btn-lg"
+        style="font-size:40px; width: 100%; margin-bottom: 10px;"
+    >
+        + Boat
+    </button>
+
+    <h1>Set a ship:</h1>
+    <button
+        @click="shipBuilder"
+        type="button"
+        class="btn btn-success btn-lg"
+        style="font-size:40px; width: 100%;"
+    >
+        + Ship 
+    </button>
+</div>
+
+            <counter texto="points" :coun="points"></counter>
+
+           
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Optional Debug Panel -->
+    <div
+      id="debugPanel"
+      style="
+        position: fixed;
+        right: 10px;
+        bottom: 10px;
+        width: 420px;
+        height: 320px;
+        background: #111;
+        color: #0f0;
+        padding: 10px;
+        overflow: auto;
+        font-family: monospace;
+        font-size: 12px;
+        z-index: 9999;
+        border: 1px solid #0f0;
+      "
+    >
+      <div><b>Game Debug</b></div>
+      <div id="debugMeta" style="color: #9f9; margin: 6px 0"></div>
+      <pre id="debugState" style="white-space: pre-wrap"></pre>
+    </div>
+
+    <!-- ✅ Reihenfolge ist wichtig -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qs@6.11.2/dist/qs.js"></script>
+
+    <!-- Board muss vor Client geladen sein -->
+    <script src="/js/board.js"></script>
+    <script src="/js/client.js"></script>
+
+    <!-- Vue part -->
+    <script>
+      // URL für Vue anzeigen (optional)
+      function qsParam(name) {
+        return new URLSearchParams(window.location.search).get(name);
+      }
+
+      var app = new Vue({
+        el: "#app",
+        data: {
+          Wurf: 0,
+          usernumber: 0,
+          erz: 0,
+          weizen: 0,
+          lehm: 0,
+          schaf: 0,
+          holz: 0,
+          points: 0,
+          userlisto: [],
+          username: qsParam("username") || "",
+          room: qsParam("room") || "",
+          colors: ["red", "green", "blue", "tomato", "pink"],
+          time: 666,
+          recPlayer: 1,
+        },
+        computed: {
+          compOwnUsername: function () {
+            return this.username;
+          },
+          comp: function () {
+            let variable = this.userlisto.map((el) => el.username);
+            return variable[this.recPlayer - 1] || "";
+          },
+          classControl: function () {
+            return function (index) {
+              if (this.recPlayer == index) return { underlined: true };
+              return { underlined: false };
+            };
+          },
+  ringStyle() {
+    return {
+      border: "10px solid " + this.ringColor + " !important",
+      background: this.fillColor + " !important"
+    };
+  }
+        },
+        methods: {
+
+          trade: function(giveRes, getRes) {
+  // 4:1 Tausch request -> Backend
+  // giveRes/getRes sind 1..5 (wie im state)
+  console.log("TRADE 4:1", { giveRes, getRes });
+
+  // socket kommt aus client.js (global) – falls nicht global: window.socket benutzen
+  if (window.socket) {
+    window.socket.emit("trade", { giveRes, getRes, rate: 4 });
+  } else {
+    console.log("No socket available yet");
+  }
+},
+
+          houseBuilder: function () {
+    if (typeof window.houseBuild === "function") {
+        window.houseBuild();
+    } else {
+        console.log("houseBuild not available");
+    }
+}, // <--- DIESES KOMMA IST ENTSCHEIDEND
+
+shipBuilder: function () {
+    if (typeof window.shipBuild === "function") {
+        window.shipBuild();
+    } else {
+        console.log("shipBuild not available");
+    }
+},
+          onSubmit: function (e) {
+            // ✅ client.js stellt chatten(e) bereit
+            if (typeof window.chatten === "function") {
+              window.chatten(e);
+            }
+          },
+          leave: function () {
+            const leaveRoom = confirm("Are you sure you want to leave the chatroom?");
+            if (leaveRoom) {
+              window.location = "../index.html";
+            }
+          },
+        },
+      });
+
+     
+    </script>
+<script>
+Vue.component('counter', {
+  props: {
+    texto: { type: String, default: "default" },
+    coun:  { type: Number, default: 0 },
+    fill:  { type: String, default: "#ffffff" },
+    textColor: { type: String, default: "#111" }
+  },
+  template: `
+    <div>
+      <h1>{{texto}}</h1>
+      <div class="round-item">
+        <div class="inside-item" :style="{ background: fill, color: textColor }">
+          <p>{{coun}}</p>
+        </div>
+      </div>
+    </div>
+  `
+})
+</script>
+
+    <footer
+      style="
+        height: 500px;
+        padding: 30px;
+        color: rgb(233, 233, 243);
+        background: rgb(27, 28, 29);
+      "
+    >
+      <center>Jan Weitzel 2026</center>
+    </footer>
+    <div class="help-fab" onclick="window.open('rules.html','_blank')">?</div>
+
+  </body>
+</html>

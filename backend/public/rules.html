@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sailors & Islands — Rules</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    body { margin: 0; background: #0b1020; color: #eef; font-family: Roboto, Arial, sans-serif; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 22px 16px 60px; }
+    .card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 16px;
+      padding: 18px 18px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+    }
+    h1 { font-size: 28px; margin: 6px 0 10px; }
+    h2 { font-size: 18px; margin: 18px 0 8px; opacity: 0.95; }
+    p, li { font-size: 15px; line-height: 1.45; opacity: 0.95; }
+    ul { margin: 8px 0 12px 18px; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .btnlink {
+      display: inline-flex; align-items: center; gap: 8px;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.18);
+      color: #eef;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <h1>Sailors & Islands — Rules</h1>
+        <div style="opacity:.8;font-size:13px;">Always accessible via the “?” icon in-game.</div>
+      </div>
+      <a class="btnlink" href="index.html">← Back</a>
+    </div>
+
+    <div class="card">
+      <h2>Goal</h2>
+      <ul>
+        <li>The game ends after <b>15 rounds</b>.</li>
+        <li>The winner is the player with the <b>most victory points</b>.</li>
+      </ul>
+
+      <h2>Key Terms</h2>
+      <ul>
+        <li><b>Tile</b>: hex field with a resource type and dice number.</li>
+        <li><b>Place (Vertex)</b>: build spot on the map (clickable points).</li>
+        <li><b>Boat</b>: normal building.</li>
+        <li><b>Ship / Big Boat</b>: advanced building that collects <b>double</b>.</li>
+        <li><b>Distance</b>: measured along vertex connections (edges). Distance 2 = exactly one vertex between.</li>
+      </ul>
+
+      <h2>Phases</h2>
+
+      <h3 style="margin:10px 0 6px;">1) Setup Phase</h3>
+      <ul>
+        <li>Each player places <b>exactly 2 Boats</b>.</li>
+        <li>Boats can be placed <b>anywhere</b> on empty places.</li>
+        <li>No distance rule applies during setup.</li>
+        <li>Placing does <b>not</b> instantly grant resources.</li>
+      </ul>
+
+      <h3 style="margin:10px 0 6px;">2) Build Phase</h3>
+      <ul>
+        <li>Build only on <b>empty</b> places.</li>
+        <li>You may build only if the target place is at <b>exact distance 2</b> from an existing <b>own Boat</b>.</li>
+        <li><b>Ships do not count</b> as anchors for the distance rule.</li>
+        <li>You cannot build on your own building or on enemy buildings.</li>
+      </ul>
+
+      <h2>Costs</h2>
+      <ul>
+        <li><b>Boat</b>: (current boat cost).</li>
+        <li><b>Ship / Big Boat</b>: costs <b>5 metals</b> + <b>3 grains</b>, produces <b>double</b> in production.</li>
+      </ul>
+
+      <h2>Turn Flow & Production</h2>
+      <ul>
+        <li>Timer runs for the active player.</li>
+        <li>When time ends: dice roll → production → next player.</li>
+        <li>Production happens only on dice rolls (not on build).</li>
+        <li>Boat produces 1×; Ship produces 2×.</li>
+      </ul>
+
+      <h2>Game End</h2>
+      <ul>
+        <li>After 15 rounds: game ends and points decide the winner.</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>
