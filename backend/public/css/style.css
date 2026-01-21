@@ -417,3 +417,112 @@ a {
 		display: none;
 	}
 }
+
+
+/* --- Optimiertes Layout --- */
+body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Verhindert Scrollen der ganzen Seite */
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* Header fixieren */
+.chat-header {
+    height: 80px;
+    padding: 5px 20px;
+    flex-shrink: 0;
+}
+
+/* Der Hauptbereich unter dem Header */
+.main-game-area {
+    display: flex;
+    flex-direction: row;
+    flex: 1; /* Nimmt den restlichen Platz ein */
+    overflow: hidden;
+}
+
+/* Ressourcen-Leiste (Horizontal oben im Spielbereich) */
+.resource-bar {
+    padding: 10px;
+    height: auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    background: linear-gradient(273deg, rgba(119,89,56,1) 0%, rgba(227,24,24,1) 100%);
+}
+
+/* Map Bereich (Zentrum) */
+.wrapper-game {
+    flex: 2; /* Gibt der Map Vorrang */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+    background: #6ba7df;
+}
+
+#canvasWrap {
+    position: relative;
+    width: 90vh; /* Map orientiert sich an der Höhe */
+    height: 90vh;
+    max-width: 100%;
+}
+
+#my-canvas, #overlay-canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Sidebars schmaler und scrollbar */
+.chat-container {
+    width: 300px;
+    min-width: 300px;
+    margin: 0;
+    border-right: 1px solid rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-messages {
+    flex: 1;
+    height: auto; /* Kein fester Wert mehr */
+}
+
+/* Rechts: Controls & Stats */
+.controls-sidebar {
+    width: 250px;
+    padding: 15px;
+    background: rgba(255,255,255,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-y: auto;
+}
+
+/* Buttons kleiner machen damit sie passen */
+.btn-build {
+    font-size: 24px !important;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+/* Deine runden Items skalieren */
+.round-item {
+    height: 100px;
+    width: 100px;
+    padding: 10px;
+    font-size: 40px;
+}
+.inside-item {
+    height: 60px;
+    width: 60px;
+    font-size: 30px;
+}
