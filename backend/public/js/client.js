@@ -26,7 +26,8 @@ const isCreate = quantity !== undefined && quantity !== null && quantity !== "";
 // 2) socket erstellen
 const socket = io();
 window.socket = socket;
-
+socket.on("init", handleInit);
+socket.on("gameState", handleGameState);
 // 3) enter erst JETZT senden
 socket.emit("enter", {
   intent: isCreate ? "create" : "join",
@@ -65,7 +66,7 @@ const chatMessages = document.querySelector(".chat-messages");
 let mapCache = null;
 
 // listeners
-socket.on("init", handleInit);
+
 // ...
 function handleInit(map) {
   console.log("[client] INIT received", map ? Object.keys(map).length : map);
@@ -82,8 +83,7 @@ function handleGameState(gameState) {
 }
 
 function paintGame(state) {
-  // RESET board every tick (simple but reliable)
-  if (mapCache) window.setupCanvas(mapCache);
+
 
   // UI values
   app.$data.time = Math.floor(state.timeDif);

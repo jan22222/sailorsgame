@@ -314,6 +314,7 @@ socket.on("enter", (payload, cb) => {
       if(res.ok === true){
 
         socket.join(room);
+        console.log("[rooms]", socket.id, Array.from(socket.rooms));
         if(res.kind == "new"){
 
           let user = res.user
@@ -372,6 +373,7 @@ socket.on("joinRoom", ({ playerId, username, room }, cb) => {
   // ✅ 2) reconnect darf IMMER rein – auch bei full
   if (res.kind === "reconnect") {
     socket.join(room);
+    console.log("[rooms]", socket.id, Array.from(socket.rooms));
     socket.emit("init", map[room]);
     socket.emit("gameState", JSON.stringify(state[room]));
     cb?.({ ok:true, kind:"reconnect" });
@@ -386,6 +388,7 @@ socket.on("joinRoom", ({ playerId, username, room }, cb) => {
 
   // kind === "new" -> extend + init wie gehabt
   socket.join(room);
+  console.log("[rooms]", socket.id, Array.from(socket.rooms));
   checkExtendState(user, state);
   socket.emit("init", map[room]);
   if (teamComplete(state[room])) startGameInterval(io, room, map);
