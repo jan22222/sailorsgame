@@ -354,95 +354,76 @@ socket.on("enter", (payload, cb) => {
 socket.on("joinRoom", ({ playerId, username, room }, cb) => {
   username = sanitizeUsername(username);
 
-  // 0) room exists + capacity check stays as-is (based on state playerCount/quantity)
   if (!state[room]) {
-    socket.emit("message", formatMessage(botName, `Room "${room}" does not exist.`));
-    cb?.({ ok: false, error: "no_room" });
-    return;
-  }
-  if (state[room].playerCount >= state[room].quantity) {
-    socket.emit("message", formatMessage(botName, `Room "${room}" is full.`));
-    cb?.({ ok: false, error: "full" });
+    cb?.({ ok:false, error:"no_room" });
     return;
   }
 
-  // 1) upsert user (returns {ok, kind, user} or {ok:false,...})
+  // ✅ 1) ZUERST userJoin
   const res = userJoin(playerId, socket.id, username, room);
 
-  // 2) conflict (same playerId already online)
   if (!res.ok) {
-    socket.emit("userError", { text: "Already connected in another tab." });
-    cb?.({ ok: false, error: res.reason || "conflict" });
+    cb?.({ ok:false, error: res.reason || "conflict" });
     return;
   }
 
   const user = res.user;
 
-  // 3) IMPORTANT: always join socket to the room so it receives events
-  socket.join(room);
-
-  if (res.kind === "new") {
-    // 4) ONLY for truly new players: extend state / increase playerCount
-    const extended = checkExtendState(user, state); // your existing helper calls extendState internally
-    console.log("[joinRoom] kind=new -> extendState?", extended);
-
-    socket.emit("message", formatMessage(botName, "Welcome to Sailors & Islands!"));
-    socket.emit("init", map[room]); // send map to new joiner
-
-    socket.broadcast.to(room).emit(
-      "message",
-      formatMessage(botName, `${user.username} has joined the game`)
-    );
-
-    io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
-    emitRooms(io);
-
-    if (teamComplete(state[room])) startGameInterval(io, room, map);
-
-    cb?.({ ok: true, kind: "new" });
-    return;
-  }
-
+  // ✅ 2) reconnect darf IMMER rein – auch bei full
   if (res.kind === "reconnect") {
-    // 5) reconnect: DO NOT extend state, DO NOT change playerCount
-    // just resync the client with map + current state
-    socket.emit("message", formatMessage(botName, "Reconnected."));
+    socket.join(room);
     socket.emit("init", map[room]);
-    socket.emit("gameState", JSON.stringify(state[room])); // one-shot snapshot
-
-    io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
-    emitRooms(io);
-
-    cb?.({ ok: true, kind: "reconnect" });
+    socket.emit("gameState", JSON.stringify(state[room]));
+    cb?.({ ok:true, kind:"reconnect" });
     return;
   }
 
-  // safety fallback (should not happen)
-  cb?.({ ok: false, error: "unexpected_kind", kind: res.kind });
+  // ✅ 3) nur NEW joins sind kapazitätsrelevant
+  if (state[room].playerCount >= state[room].quantity) {
+    cb?.({ ok:false, error:"full" });
+    return;
+  }
+
+  // kind === "new" -> extend + init wie gehabt
+  socket.join(room);
+  checkExtendState(user, state);
+  socket.emit("init", map[room]);
+  if (teamComplete(state[room])) startGameInterval(io, room, map);
+  cb?.({ ok:true, kind:"new" });
 });
 
 
     // -------- DISCONNECT --------
 socket.on("leaveRoom", () => {
-  console.log(" leaveroom")
-})
-
-      socket.on("disconnect", () => {
   const user = getCurrentUser(socket.id);
   if (!user) return;
 
+  // ✅ Intent: absichtlich raus -> kein Rejoin
+  markAbandoned(user);
+
+  // optional: nicht mehr Game-Events bekommen
+  socket.leave(user.room);
+
+  // UI update
+  io.to(user.room).emit("roomUsers", { room: user.room, users: getRoomUsers(user.room) });
+
+  console.log("[leaveRoom] HARD", user.username, user.playerId);
+});
+
+
+ socket.on("disconnect", () => {
+  const user = getCurrentUser(socket.id);
+  if (!user) return;
+
+  // ✅ Connection lost -> Rejoin möglich
   setOffline(user);
 
-  const roomState = state[user.room];
-  if (!roomState) return;
+  // optional: AFK grace / timer reset hier (wenn du’s so willst)
+  // ...
 
-  const slot = Number(keyByVal(roomState, user.playerId)); // <-- statt findSlotByPlayerId
-  if (slot === roomState.activePlayerNumber) {
-    roomState.turnTime = timeGetter();            // <-- statt now()
-    roomState.timeDif = TURN_SECONDS;
-    roomState.afkUntil = timeGetter() + 10;       // <-- statt now()+10
-  }
+  console.log("[disconnect] OFFLINE", user.username, user.playerId);
 });
+
 
 
   });
