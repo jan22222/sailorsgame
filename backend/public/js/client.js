@@ -1,77 +1,78 @@
 // public/js/client.js
-// Socket client for Sailors & Islands (local backend)
 
 let lastTurnPlayer = null;
 
-function showTurnToast(name) {
-  const el = document.getElementById("turnToast");
-  if (!el) return;
-
-  el.innerHTML = `${name}<span class="sub">ist am Zug</span>`;
-  el.classList.add("show");
-
-  clearTimeout(showTurnToast._t);
-  showTurnToast._t = setTimeout(() => el.classList.remove("show"), 1200);
+function getOrCreatePlayerId() {
+  let playerId = sessionStorage.getItem("playerId");
+  console.log("playerId gefunden?", playerId);
+  if (!playerId) {
+    playerId = crypto.randomUUID();
+    sessionStorage.setItem("playerId", playerId);
+    console.log("playerId neu erstellt", playerId);
+  }
+  return playerId;
 }
 
-const chatMessages = document.querySelector(".chat-messages");
+const playerId = getOrCreatePlayerId();
 
-// URL params
+// 1) URL params ZUERST
 const params = Qs.parse(location.search, { ignoreQueryPrefix: true });
 const username = params.username || "anon";
 const room = params.room || "room1";
 const quantity = params.quantity;     // nur bei create vorhanden
 const landscape = params.landscape || "normal";
+const isCreate = quantity !== undefined && quantity !== null && quantity !== "";
 
-// ✅ lokal verbinden (gleicher Host/Port)
+// 2) socket erstellen
 const socket = io();
 window.socket = socket;
 
-// Map cache (für redraw)
+// 3) enter erst JETZT senden
+socket.emit("enter", {
+  intent: isCreate ? "create" : "join",
+  requestedRoom: room,
+  username,
+  quantity,
+  landscape,
+  playerId,
+}, (res) => {
+  if (res.session === "clear") sessionStorage.removeItem("playerId");
+
+  if (res.action === "reject") {
+    alert(res.reason);
+    location.href = "index.html";
+    return;
+  }
+
+  if (res.action === "rejoin") {
+    socket.emit("joinRoom", { playerId, room: res.room, username });
+    return;
+  }
+
+  if (res.action === "create") {
+    socket.emit("createRoom", { playerId, room, username, quantity: Number(quantity), landscape });
+    return;
+  }
+
+  if (res.action === "join") {
+    socket.emit("joinRoom", { playerId, room: res.room, username });
+  }
+});
+
+const chatMessages = document.querySelector(".chat-messages");
+
+// Map cache
 let mapCache = null;
 
-// --- socket listeners ---
+// listeners
 socket.on("init", handleInit);
-socket.on("gameState", handleGameState);
-socket.on("gameOver", handleGameOver);
-
-socket.on("leave", () => (window.location = "../index.html"));
-
-socket.on("roomUsers", ({ room, users }) => {
-  app.$data.room = room;
-  app.$data.userlisto = users;
-});
-
-socket.on("back", (msg) => console.log("BACK:", msg));
-
-socket.on("message", (message) => {
-  outputMessage(message);
-  if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
-});
-
-// --- join/create (robust) ---
-const isCreate = quantity !== undefined && quantity !== null && quantity !== "";
-
-if (!isCreate) {
-  console.log("joinRoom", { username, room });
-  socket.emit("joinRoom", { username, room });
-} else {
-  console.log("createRoom", { username, room, quantity, landscape });
-  socket.emit("createRoom", {
-    username,
-    room,
-    quantity: Number(quantity),
-    landscape
-  });
-}
-
-// --- canvas init ---
+// ...
 function handleInit(map) {
   console.log("[client] INIT received", map ? Object.keys(map).length : map);
-  const $meta = document.getElementById("debugMeta");
-  if ($meta) $meta.textContent = "INIT received (map)";
+  mapCache = map;                 // ✅ WICHTIG
   window.setupCanvas(map);
 }
+
 
 
 // --- game render ---
@@ -97,15 +98,16 @@ if (activeName && activeName !== lastTurnPlayer) {
   app.$data.Wurf = state.Wurf;
 
   // eigene playerNumber bestimmen
-  const myNumber = (() => {
+  const slotId = (() => {
   const pc = Number(state.playerCount || 0);
   for (let i = 1; i <= pc; i++) {
-    if (state[i]?.clientID === socket.id) return String(i);
+    if (state[i]?.playerId === playerId) return String(i);
+
   }
   return null;
 })();
-if (!myNumber) {
-  console.log("[paint] myNumber NOT FOUND", {
+if (!slotId) {
+  console.log("[paint] slotId NOT FOUND", {
     socketId: socket.id,
     playerCount: state.playerCount,
     ids: Array.from({ length: state.playerCount || 0 }, (_, k) => ({
@@ -118,23 +120,23 @@ if (!myNumber) {
 }
 
 
-  if (!myNumber) return;
+  if (!slotId) return;
 
-  app.$data.usernumber = myNumber;
+  app.$data.usernumber = slotId;
   console.log("[paint] my res", {
-  metals: state[myNumber][1],
-  grains: state[myNumber][2],
-  mud: state[myNumber][3],
-  sheep: state[myNumber][4],
-  wood: state[myNumber][5],
+  metals: state[slotId][1],
+  grains: state[slotId][2],
+  mud: state[slotId][3],
+  sheep: state[slotId][4],
+  wood: state[slotId][5],
 });
   // Ressourcen
-  app.$data.erz = state[myNumber][1];
-  app.$data.weizen = state[myNumber][2];
-  app.$data.lehm = state[myNumber][3];
-  app.$data.schaf = state[myNumber][4];
-  app.$data.holz = state[myNumber][5];
-  app.$data.points = state[myNumber].points;
+  app.$data.erz = state[slotId][1];
+  app.$data.weizen = state[slotId][2];
+  app.$data.lehm = state[slotId][3];
+  app.$data.schaf = state[slotId][4];
+  app.$data.holz = state[slotId][5];
+  app.$data.points = state[slotId].points;
 
   // Gebäude zeichnen
   for (let placeId = 1; placeId <= 240; placeId++) {
@@ -222,6 +224,15 @@ function buildSelectedShip() {
   socket.emit("ship", placeId);
   console.log("[client] Requesting Ship at:", placeId);
 }
+function showTurnToast(name) {
+  const el = document.getElementById("turnToast");
+  if (!el) return;
 
+  el.innerHTML = `${name}<span class="sub">ist am Zug</span>`;
+  el.classList.add("show");
+
+  clearTimeout(showTurnToast._t);
+  showTurnToast._t = setTimeout(() => el.classList.remove("show"), 1200);
+}
 // Global verfügbar machen für Vue
 window.shipBuild = buildSelectedShip;

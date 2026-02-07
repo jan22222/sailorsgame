@@ -219,7 +219,21 @@
                 houseBuilder: function () { if (window.houseBuild) window.houseBuild(); },
                 shipBuilder: function () { if (window.shipBuild) window.shipBuild(); },
                 onSubmit: function (e) { if (window.chatten) window.chatten(e); },
-                leave: function () { if (confirm("Leave game?")) window.location = "../index.html"; }
+                leave: function () {
+                        if (confirm("Leave game?")) {
+                             if (window.socket) {
+                                window.socket.emit("leaveRoom");
+                            }
+
+                            // 2️⃣ Session löschen (bewusster Exit)
+                            sessionStorage.removeItem("playerId");
+
+                            // 3️⃣ Kurze Verzögerung, damit das Event rausgeht
+                            setTimeout(() => {
+                                window.location = "../index.html";
+                            }, 100);
+                        }
+                    }
             }
         });
 

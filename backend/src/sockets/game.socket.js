@@ -3,14 +3,20 @@
 const formatMessage = require("../utils/messages");
 const { buildingPossible, findPlacesAroundArea } = require("../utils/netz");
 const {
-  userJoin,
+ userJoin,
   getCurrentUser,
   userLeave,
   getRoomUsers,
+  getUserByPlayerId,
+
+  // helpers if you want them elsewhere
+  usersByPlayerId,
+  setOnline,
+  setOffline,
+  markAbandoned,
 } = require("../utils/users");
 
 const botName = "AutoBot";
-
 // ====== STEP 1 CONFIG (small steps) ======
 const TURN_SECONDS = 60;     // ✅ was 30
 const TOTAL_ROUNDS = 17;     // ✅ neues Spielziel
@@ -90,7 +96,7 @@ module.exports = function registerGameSockets(io) {
       const roomState = state[user.room];
       if (!roomState) return cb?.({ ok: false, error: "no roomState" });
 
-      const playerNum = keyByVal(roomState, user.id);
+      const playerNum = keyByVal(roomState, user.playerId);
       if (!playerNum) return cb?.({ ok: false, error: "no playerNum" });
 
       giveRes = Number(giveRes);
@@ -155,7 +161,7 @@ module.exports = function registerGameSockets(io) {
       const roomState = state[user.room];
       if (!roomState) return cb?.({ ok: false, error: "no roomState" });
 
-      const playerNum = keyByVal(roomState, user.id);
+      const playerNum = keyByVal(roomState, user.playerId);
       if (!playerNum) return cb?.({ ok: false, error: "no playerNum" });
 
       fromRes = Number(fromRes);
@@ -237,164 +243,208 @@ module.exports = function registerGameSockets(io) {
   }
 });
 
+// Einstiegspunkt
+
+socket.on("enter", (payload, cb) => {
+  const {
+    intent,          // "join" | "create"
+    requestedRoom,
+    username,
+    quantity,
+    landscape,
+    playerId
+  } = payload;
+
+  // 1) playerId existiert?
+  const existingUser = usersByPlayerId.get(playerId);
+
+  // 2) User existiert schon
+  if (existingUser) {
+    const room = existingUser.room;
+
+    // Spiel existiert nicht mehr
+    if (!state[room]) {
+      cb({ action: "reject", reason: "game_over", session: "clear" });
+      return;
+    }
+
+    // Spieler gehört zu diesem Room → Rejoin
+    if (!existingUser.abandoned) {
+      cb({ action: "rejoin", room, session: "keep" });
+      return;
+    }
+
+    // abandoned → Session ungültig
+    cb({ action: "reject", reason: "abandoned", session: "clear" });
+    return;
+  }
+
+  // 3) Neuer Spieler
+  if (intent === "create") {
+    cb({ action: "create", room: requestedRoom, session: "keep" });
+    return;
+  }
+
+  if (intent === "join") {
+    if (!state[requestedRoom]) {
+      cb({ action: "reject", reason: "no_room", session: "keep" });
+      return;
+    }
+    if (state[requestedRoom].playerCount >= state[requestedRoom].quantity) {
+      cb({ action: "reject", reason: "room_full", session: "keep" });
+      return;
+    }
+    cb({ action: "join", room: requestedRoom, session: "keep" });
+    return;
+  }
+});
 
 
     // -------- CREATE ROOM --------
-    socket.on("createRoom", ({ username, room, quantity, landscape }) => {
+    socket.on("createRoom", ({ playerId, username, room, quantity, landscape }) => {
       username = sanitizeUsername(username);
       quantity = clampInt(quantity, 2, MAX_PLAYERS);
 
       console.log("[createRoom]", { username, room, quantity, landscape });
 
-      const user = userJoin(socket.id, username, room);
-      socket.join(room);
+      
+      const res = userJoin(playerId, socket.id, username, room);
+      //anmerkung: user.id ist die socket.id während playerId generiert ist für die session, room ist der room name und kein zeiger. 
+      // n ist die laufende nummer im state, wird nicht im user gespeichert. 
+      if(res.ok === true){
 
-      state = createState(user, state, room, Number(quantity));
-      map = createMap(map, room, landscape);
+        socket.join(room);
+        if(res.kind == "new"){
 
-      socket.emit("back", "start creating room");
-      socket.emit(
-        "message",
-        formatMessage(botName, "Welcome to Sailors & Islands, Creator!")
-      );
-
-      // ✅ wichtig: Creator bekommt die Map direkt
-      socket.emit("init", map[room]);
-
-      io.to(room).emit(
-        "message",
-        formatMessage(botName, `${username} created room "${room}"`)
-      );
-
-      io.to(room).emit("roomUsers", {
-        room,
-        users: getRoomUsers(room),
-      });
-
-      emitRooms(io);
+          let user = res.user
+          state = createState(user, state, room, Number(quantity));
+          map = createMap(map, room, landscape);
+    
+          socket.emit("back", "start creating room");
+          socket.emit(
+            "message",
+            formatMessage(botName, "Welcome to Sailors & Islands, Creator!")
+          );
+    
+          // ✅ wichtig: Creator bekommt die Map direkt
+          socket.emit("init", map[room]);
+    
+          io.to(room).emit(
+            "message",
+            formatMessage(botName, `${username} created room "${room}"`)
+          );
+    
+          io.to(room).emit("roomUsers", {
+            room,
+            users: getRoomUsers(room),
+          });
+    
+          emitRooms(io);
+        }
+      }
+      else
+      {
+        socket.emit("userError", { text: "Already connected in another tab." })
+      }
     });
 
     // -------- JOIN ROOM --------
-    socket.on("joinRoom", ({ username, room }) => {
-      username = sanitizeUsername(username);
+// joinRoom handler (game.socket.js) – minimal pattern with userJoin {ok, kind, user}
 
-      console.log("[joinRoom]", { username, room });
+socket.on("joinRoom", ({ playerId, username, room }, cb) => {
+  username = sanitizeUsername(username);
 
-      if (!state[room]) {
-        console.log("[joinRoom] rejected: room does not exist", room);
-        socket.emit(
-          "message",
-          formatMessage(
-            botName,
-            `Room "${room}" does not exist (create it first).`
-          )
-        );
-        emitRooms(io);
-        return;
-      }
+  // 0) room exists + capacity check stays as-is (based on state playerCount/quantity)
+  if (!state[room]) {
+    socket.emit("message", formatMessage(botName, `Room "${room}" does not exist.`));
+    cb?.({ ok: false, error: "no_room" });
+    return;
+  }
+  if (state[room].playerCount >= state[room].quantity) {
+    socket.emit("message", formatMessage(botName, `Room "${room}" is full.`));
+    cb?.({ ok: false, error: "full" });
+    return;
+  }
 
-      // ✅ NEW: room full reject
-      if (state[room].playerCount >= state[room].quantity) {
-        console.log("[joinRoom] rejected: room is full", room);
-        socket.emit(
-          "message",
-          formatMessage(botName, `Room "${room}" is full.`)
-        );
-        emitRooms(io);
-        return;
-      }
+  // 1) upsert user (returns {ok, kind, user} or {ok:false,...})
+  const res = userJoin(playerId, socket.id, username, room);
 
-      const user = userJoin(socket.id, username, room);
-      socket.join(room);
+  // 2) conflict (same playerId already online)
+  if (!res.ok) {
+    socket.emit("userError", { text: "Already connected in another tab." });
+    cb?.({ ok: false, error: res.reason || "conflict" });
+    return;
+  }
 
-      const extended = checkExtendState(user, state);
-      console.log("[joinRoom] extend state result", extended);
+  const user = res.user;
 
-      socket.emit(
-        "message",
-        formatMessage(botName, "Welcome to Sailors & Islands!")
-      );
+  // 3) IMPORTANT: always join socket to the room so it receives events
+  socket.join(room);
 
-      // ✅ wichtig: Joiner bekommt die Map
-      socket.emit("init", map[room]);
+  if (res.kind === "new") {
+    // 4) ONLY for truly new players: extend state / increase playerCount
+    const extended = checkExtendState(user, state); // your existing helper calls extendState internally
+    console.log("[joinRoom] kind=new -> extendState?", extended);
 
-      // bot: joined
-      socket.broadcast
-        .to(room)
-        .emit(
-          "message",
-          formatMessage(botName, `${user.username} has joined the game`)
-        );
+    socket.emit("message", formatMessage(botName, "Welcome to Sailors & Islands!"));
+    socket.emit("init", map[room]); // send map to new joiner
 
-      io.to(room).emit("roomUsers", {
-        room,
-        users: getRoomUsers(room),
-      });
+    socket.broadcast.to(room).emit(
+      "message",
+      formatMessage(botName, `${user.username} has joined the game`)
+    );
 
-      console.log(
-        "[game] TEAMCHECK:",
-        "room=",
-        room,
-        "playerCount=",
-        state[room].playerCount,
-        "quantity=",
-        state[room].quantity
-      );
+    io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
+    emitRooms(io);
 
-      emitRooms(io);
+    if (teamComplete(state[room])) startGameInterval(io, room, map);
 
-      if (teamComplete(state[room])) {
-        startGameInterval(io, room, map);
-      } else {
-        console.log(
-          "[game] wait room=",
-          room,
-          "playerCount=",
-          state[room].playerCount,
-          "quantity=",
-          state[room].quantity
-        );
-      }
-    });
+    cb?.({ ok: true, kind: "new" });
+    return;
+  }
+
+  if (res.kind === "reconnect") {
+    // 5) reconnect: DO NOT extend state, DO NOT change playerCount
+    // just resync the client with map + current state
+    socket.emit("message", formatMessage(botName, "Reconnected."));
+    socket.emit("init", map[room]);
+    socket.emit("gameState", JSON.stringify(state[room])); // one-shot snapshot
+
+    io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
+    emitRooms(io);
+
+    cb?.({ ok: true, kind: "reconnect" });
+    return;
+  }
+
+  // safety fallback (should not happen)
+  cb?.({ ok: false, error: "unexpected_kind", kind: res.kind });
+});
+
 
     // -------- DISCONNECT --------
-    socket.on("disconnect", () => {
-      const user = userLeave(socket.id);
-      if (!user) {
-        console.log("[socket] disconnect unknown", socket.id);
-        return;
-      }
+socket.on("leaveRoom", () => {
+  console.log(" leaveroom")
+})
 
-      console.log("[socket] disconnect", user.username, "room=", user.room);
+      socket.on("disconnect", () => {
+  const user = getCurrentUser(socket.id);
+  if (!user) return;
 
-      deletePlayerFromState(state, user);
+  setOffline(user);
 
-      io.to(user.room).emit(
-        "message",
-        formatMessage(botName, `${user.username} has left the game`)
-      );
+  const roomState = state[user.room];
+  if (!roomState) return;
 
-      io.to(user.room).emit("roomUsers", {
-        room: user.room,
-        users: getRoomUsers(user.room),
-      });
+  const slot = Number(keyByVal(roomState, user.playerId)); // <-- statt findSlotByPlayerId
+  if (slot === roomState.activePlayerNumber) {
+    roomState.turnTime = timeGetter();            // <-- statt now()
+    roomState.timeDif = TURN_SECONDS;
+    roomState.afkUntil = timeGetter() + 10;       // <-- statt now()+10
+  }
+});
 
-      if (getRoomUsers(user.room).length === 0) {
-        console.log("[room] empty -> cleanup", user.room);
 
-        // ✅ NEW: stop interval when room is gone
-        if (roomIntervals[user.room]) {
-          clearInterval(roomIntervals[user.room]);
-          delete roomIntervals[user.room];
-        }
-
-        delete state[user.room];
-        delete map[user.room];
-        console.log("[room] deleted", user.room);
-      }
-
-      emitRooms(io);
-    });
   });
 };
 
@@ -488,7 +538,7 @@ function neuerWurf(roomState, map, room) {
 }
 // ================= HELPERS FOR SHIP =================
 function enoughResourcesShip(state, user) {
-  const n = keyByVal(state[user.room], user.id);
+  const n = keyByVal(state[user.room], user.playerId);
   // Kosten laut Wunsch: 3 Weizen (ID 2), 5 Erz (ID 1)
   return (
     state[user.room][n][2] >= 3 && 
@@ -497,14 +547,14 @@ function enoughResourcesShip(state, user) {
 }
 
 function takeResourcesShip(state, user) {
-  const n = keyByVal(state[user.room], user.id);
+  const n = keyByVal(state[user.room], user.playerId);
   state[user.room][n][2] -= 3; // Weizen abziehen
   state[user.room][n][1] -= 5; // Erz abziehen
 }
 // ================= HELPERS FOR SHIP =================
 
 function enoughResourcesShip(state, user) {
-  const n = keyByVal(state[user.room], user.id);
+  const n = keyByVal(state[user.room], user.playerId);
   // Kosten: 3 Weizen (3), 5 Erz (5)
   return (
     state[user.room][n][3] >= 3 &&
@@ -513,7 +563,7 @@ function enoughResourcesShip(state, user) {
 }
 
 function takeResourcesShip(state, user) {
-  const n = keyByVal(state[user.room], user.id);
+  const n = keyByVal(state[user.room], user.playerId);
   state[user.room][n][3] -= 3;
   state[user.room][n][5] -= 5;
 }
@@ -541,7 +591,7 @@ function buildShip(id, state, user) {
     return { ok: false, message: "Invalid or occupied location." };
   }
 
-  const number = keyByVal(roomState, user.id);
+  const number = keyByVal(roomState, user.playerId);
   roomState.net[id].playerNumber = Number(number);
   roomState.net[id].value = 2; // Ein Schiff zählt doppelt bei Ressourcen-Ertrag
   roomState[number].points += 2; // Mehr Punkte für ein großes Objekt
@@ -578,7 +628,7 @@ function buildHouse(id, state, user) {
     return { ok: false, message: "Cannot build there: already occupied." };
   }
 
-  const number = keyByVal(roomState, user.id);
+  const number = keyByVal(roomState, user.playerId);
   roomState.net[id].playerNumber = Number(number);
   roomState.net[id].value = 1;
   roomState[number].points++;
@@ -593,19 +643,19 @@ function buildHouse(id, state, user) {
 // ================= HELPERS =================
 
 function checkIfPlayerActive(state, user) {
-  const number = keyByVal(state[user.room], user.id);
+  const number = keyByVal(state[user.room], user.playerId);
   return state[user.room].activePlayerNumber == number;
 }
 
 function takeResourcesHouse(state, user) {
-  const n = keyByVal(state[user.room], user.id);
+  const n = keyByVal(state[user.room], user.playerId);
   state[user.room][n][3] -= 2;
   state[user.room][n][4] -= 1;
   state[user.room][n][5] -= 2;
 }
 
 function enoughResourcesHouse(state, user) {
-  const n = keyByVal(state[user.room], user.id);
+  const n = keyByVal(state[user.room], user.playerId);
   return (
     state[user.room][n][3] >= 2 &&
     state[user.room][n][4] >= 1 &&
@@ -614,7 +664,7 @@ function enoughResourcesHouse(state, user) {
 }
 
 function checkBuildingPossible(id, state, user) {
-  const n = keyByVal(state[user.room], user.id);
+  const n = keyByVal(state[user.room], user.playerId);
   if (state[user.room][n].points < 2) return true;
 
   const places = buildingPossible(id);
@@ -635,12 +685,13 @@ function createState(user, state, room, quantity) {
     net: createNet(),
     1: {
       username: sanitizeUsername(user.username),
-      clientID: user.id,
-      1: 10,
-      2: 9,
-      3: 8,
-      4: 7,
-      5: 6,
+      socketId: user.socketId,
+      playerId: user.playerId,
+      1: 0,
+      2: 0,
+      3: 2,
+      4: 2,
+      5: 2,
       points: 0,
       color: color(1),
     },
@@ -659,25 +710,35 @@ function checkExtendState(user, state) {
 
 function extendState(user, state) {
   const room = user.room;
+
   state[room].playerCount++;
   const n = state[room].playerCount;
 
   state[room][n] = {
     username: sanitizeUsername(user.username),
-    clientID: user.id,
-    1: 10,
-    2: 9,
-    3: 8,
-    4: 7,
-    5: 6,
+
+    // Identität (stabil für Rejoin)
+    playerId: user.playerId,
+
+    // optional (nur Debug/Info; NICHT für Identität verwenden)
+    socketId: user.socketId,
+
+    // Ressourcen (1..5) konsistent wie in createState
+    1: 0,
+    2: 0,
+    3: 2,
+    4: 2,
+    5: 2,
+
     points: 0,
     color: color(n),
   };
 }
 
+
 function deletePlayerFromState(state, user) {
   if (!state[user.room]) return;
-  const n = keyByVal(state[user.room], user.id);
+  const n = keyByVal(state[user.room], user.playerId);
   if (n) delete state[user.room][n];
 }
 
@@ -724,7 +785,7 @@ function computeGameOverPayload(roomState) {
 // ================= UTIL =================
 
 function keyByVal(obj, val) {
-  return Object.keys(obj).find((k) => obj[k]?.clientID === val);
+  return Object.keys(obj).find((k) => obj[k]?.playerId === val);
 }
 
 function timeGetter() {
