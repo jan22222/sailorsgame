@@ -64,7 +64,7 @@ function clampInt(n, min, max) {
 
 module.exports = function registerGameSockets(io) {
   io.on("connection", (socket) => {
-    console.log("[socket] connect", socket.id);
+    console.log("[client] CONNECT socket.id =", socket.id);
 
     socket.onAny((event, ...args) => {
       console.log("[socket] EVENT IN:", event, args);
@@ -223,13 +223,20 @@ module.exports = function registerGameSockets(io) {
     // -------- CHAT (global) --------
     socket.on("chatMessage", (msg) => {
       const user = getCurrentUser(socket.id);
+      console.log("[chatMessage] socket", socket.id, "rooms:", Array.from(socket.rooms));
+      console.log("[chatMessage] known users socketIds:", Array.from(usersByPlayerId.values()).map(u => ({playerId:u.playerId, socketId:u.socketId, room:u.room, online:u.isOnline})));
+
       if (!user) return;
       io.to(user.room).emit("message", formatMessage(user.username, msg));
+
     });
 
     // -------- HOUSE (global) --------
   socket.on("house", (id) => {
   const user = getCurrentUser(socket.id);
+  console.log("[house] socket", socket.id, "rooms:", Array.from(socket.rooms));
+  console.log("[house] known users socketIds:", Array.from(usersByPlayerId.values()).map(u => ({playerId:u.playerId, socketId:u.socketId, room:u.room, online:u.isOnline})));
+
   if (!user) {
     console.log("[house] ignored: no user");
     socket.emit("userError", { text: "Not logged in / no user session." });

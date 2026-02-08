@@ -1,6 +1,8 @@
 // public/js/client.js
 
 let lastTurnPlayer = null;
+let inGame = false;          // ✅ Aktionen erst nach init erlauben
+let mapCache = null;         // Map cache
 
 function getOrCreatePlayerId() {
   let playerId = sessionStorage.getItem("playerId");
@@ -15,66 +17,98 @@ function getOrCreatePlayerId() {
 
 const playerId = getOrCreatePlayerId();
 
-// 1) URL params ZUERST
+// 1) URL params
 const params = Qs.parse(location.search, { ignoreQueryPrefix: true });
 const username = params.username || "anon";
 const room = params.room || "room1";
-const quantity = params.quantity;     // nur bei create vorhanden
+const quantity = params.quantity;           // nur bei create vorhanden
 const landscape = params.landscape || "normal";
 const isCreate = quantity !== undefined && quantity !== null && quantity !== "";
 
 // 2) socket erstellen
-const socket = io();
+const socket = io({ autoConnect: true });
 window.socket = socket;
+
+// ✅ Listener VOR connect/enter registrieren
 socket.on("init", handleInit);
 socket.on("gameState", handleGameState);
-// 3) enter erst JETZT senden
-socket.emit("enter", {
-  intent: isCreate ? "create" : "join",
-  requestedRoom: room,
-  username,
-  quantity,
-  landscape,
-  playerId,
-}, (res) => {
-  if (res.session === "clear") sessionStorage.removeItem("playerId");
+socket.on("gameOver", handleGameOver);
 
-  if (res.action === "reject") {
-    alert(res.reason);
-    location.href = "index.html";
-    return;
-  }
-
-  if (res.action === "rejoin") {
-    socket.emit("joinRoom", { playerId, room: res.room, username });
-    return;
-  }
-
-  if (res.action === "create") {
-    socket.emit("createRoom", { playerId, room, username, quantity: Number(quantity), landscape });
-    return;
-  }
-
-  if (res.action === "join") {
-    socket.emit("joinRoom", { playerId, room: res.room, username });
-  }
+socket.on("message", (message) => {
+  console.log("[client] got message", message);
+  outputMessage(message);
+  const chatMessages = document.querySelector(".chat-messages");
+  if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
 });
 
-const chatMessages = document.querySelector(".chat-messages");
+// 3) enter-flow als Funktion (wird bei jedem connect benutzt)
+function runEnterFlow() {
+  console.log("[client] runEnterFlow", { socketId: socket.id, playerId, username, room, isCreate });
 
-// Map cache
-let mapCache = null;
+  socket.emit(
+    "enter",
+    {
+      intent: isCreate ? "create" : "join",
+      requestedRoom: room,
+      username,
+      quantity,
+      landscape,
+      playerId,
+    },
+    (res) => {
+      console.log("[client] enter cb", res);
 
-// listeners
+      if (res?.session === "clear") sessionStorage.removeItem("playerId");
 
-// ...
-function handleInit(map) {
-  console.log("[client] INIT received", map ? Object.keys(map).length : map);
-  mapCache = map;                 // ✅ WICHTIG
-  window.setupCanvas(map);
+      if (res?.action === "reject") {
+        alert(res.reason);
+        location.href = "index.html";
+        return;
+      }
+
+      if (res?.action === "rejoin") {
+        socket.emit("joinRoom", { playerId, room: res.room, username });
+        return;
+      }
+
+      if (res?.action === "create") {
+        socket.emit("createRoom", {
+          playerId,
+          room,
+          username,
+          quantity: Number(quantity),
+          landscape,
+        });
+        return;
+      }
+
+      if (res?.action === "join") {
+        socket.emit("joinRoom", { playerId, room: res.room, username });
+      }
+    }
+  );
 }
 
+// ✅ WICHTIG: bei JEDEM connect enter erneut starten
+socket.on("connect", () => {
+  console.log("[client] CONNECT socket.id =", socket.id);
+  inGame = false;          // bis init wieder da ist
+  runEnterFlow();
+});
 
+// optional: debug
+socket.on("disconnect", (reason) => {
+  console.log("[client] DISCONNECT", reason);
+  inGame = false;
+});
+
+// --- canvas init ---
+function handleInit(map) {
+  console.log("[client] INIT received", map ? Object.keys(map).length : map);
+  mapCache = map;
+  inGame = true;                 // ✅ ab jetzt darf man bauen/chatten
+  window.setupCanvas(map);
+}
 
 // --- game render ---
 function handleGameState(gameState) {
@@ -83,53 +117,39 @@ function handleGameState(gameState) {
 }
 
 function paintGame(state) {
-
-
   // UI values
   app.$data.time = Math.floor(state.timeDif);
   app.$data.recPlayer = state.activePlayerNumber;
-  const names = app.$data.userlisto.map(u => u.username);
-const activeName = names[state.activePlayerNumber - 1] || "";
-if (activeName && activeName !== lastTurnPlayer) {
-  lastTurnPlayer = activeName;
-  showTurnToast(activeName);
-}
+
+  // ✅ Turn-Name stabil aus STATE, nicht aus userlisto
+  const activeName = state[state.activePlayerNumber]?.username || "";
+  if (activeName && activeName !== lastTurnPlayer) {
+    lastTurnPlayer = activeName;
+    showTurnToast(activeName);
+  }
 
   app.$data.Wurf = state.Wurf;
 
-  // eigene playerNumber bestimmen
+  // eigene slotId bestimmen (per playerId)
   const slotId = (() => {
-  const pc = Number(state.playerCount || 0);
-  for (let i = 1; i <= pc; i++) {
-    if (state[i]?.playerId === playerId) return String(i);
+    const pc = Number(state.playerCount || 0);
+    for (let i = 1; i <= pc; i++) {
+      if (state[i]?.playerId === playerId) return String(i);
+    }
+    return null;
+  })();
 
+  if (!slotId) {
+    console.log("[paint] slotId NOT FOUND", {
+      socketId: socket.id,
+      playerId,
+      playerCount: state.playerCount,
+    });
+    return;
   }
-  return null;
-})();
-if (!slotId) {
-  console.log("[paint] slotId NOT FOUND", {
-    socketId: socket.id,
-    playerCount: state.playerCount,
-    ids: Array.from({ length: state.playerCount || 0 }, (_, k) => ({
-      n: k + 1,
-      clientID: state[k + 1]?.clientID,
-      username: state[k + 1]?.username
-    }))
-  });
-  return;
-}
-
-
-  if (!slotId) return;
 
   app.$data.usernumber = slotId;
-  console.log("[paint] my res", {
-  metals: state[slotId][1],
-  grains: state[slotId][2],
-  mud: state[slotId][3],
-  sheep: state[slotId][4],
-  wood: state[slotId][5],
-});
+
   // Ressourcen
   app.$data.erz = state[slotId][1];
   app.$data.weizen = state[slotId][2];
@@ -157,39 +177,45 @@ if (!slotId) {
 
 // --- build from UI button (+) ---
 function buildSelectedHouse() {
+  if (!inGame) return console.warn("[client] build blocked: not inGame yet");
   const placeId = window.getSelectedPlaceId();
-  if (!placeId) {
-    console.log("No place selected");
-    return;
-  }
+  if (!placeId) return console.log("No place selected");
   socket.emit("house", placeId);
 }
+window.buildSelectedHouse = buildSelectedHouse;
+window.houseBuild = buildSelectedHouse;
+
+function buildSelectedShip() {
+  if (!inGame) return console.warn("[client] ship blocked: not inGame yet");
+  const placeId = window.getSelectedPlaceId();
+  if (!placeId) return alert("Bitte wähle zuerst einen Bauplatz!");
+  socket.emit("ship", placeId);
+}
+window.shipBuild = buildSelectedShip;
+
 function trade4to1(fromRes, toRes) {
+  if (!inGame) return;
   socket.emit("trade4to1", { fromRes, toRes }, (res) => {
     console.log("[trade ACK]", res);
   });
 }
 window.trade4to1 = trade4to1;
 
-window.buildSelectedHouse = buildSelectedHouse;
-
-// ✅ compatibility: alte Vue/HTML calls
-window.houseBuild = buildSelectedHouse;
-
 // --- chat ---
 function chatten(e) {
-  let msg = e.target.elements.msg.value;
-  msg = msg.trim();
+  if (!inGame) return console.warn("[client] chat blocked: not inGame yet");
+  let msg = e.target.elements.msg.value.trim();
   if (!msg) return;
-
   socket.emit("chatMessage", msg);
   e.target.elements.msg.value = "";
   e.target.elements.msg.focus();
 }
 window.chatten = chatten;
 
-// Output message to DOM
 function outputMessage(message) {
+  const box = document.querySelector(".chat-messages");
+  if (!box) return console.warn("[chat] .chat-messages not found");
+
   const div = document.createElement("div");
   div.classList.add("message");
 
@@ -204,35 +230,19 @@ function outputMessage(message) {
   para.innerText = message.text;
   div.appendChild(para);
 
-  document.querySelector(".chat-messages").appendChild(div);
+  box.appendChild(div);
 }
 
-// GameOver (optional)
 function handleGameOver(data) {
-  try {
-    JSON.parse(data);
-  } catch {}
+  try { JSON.parse(data); } catch {}
   alert("Game Over");
 }
-// --- build Ship from UI button (+) ---
-function buildSelectedShip() {
-  const placeId = window.getSelectedPlaceId(); // Nutzt die existierende Logik vom Board
-  if (!placeId) {
-    alert("Bitte wähle zuerst einen Bauplatz auf der Karte aus!");
-    return;
-  }
-  socket.emit("ship", placeId);
-  console.log("[client] Requesting Ship at:", placeId);
-}
+
 function showTurnToast(name) {
   const el = document.getElementById("turnToast");
   if (!el) return;
-
   el.innerHTML = `${name}<span class="sub">ist am Zug</span>`;
   el.classList.add("show");
-
   clearTimeout(showTurnToast._t);
   showTurnToast._t = setTimeout(() => el.classList.remove("show"), 1200);
 }
-// Global verfügbar machen für Vue
-window.shipBuild = buildSelectedShip;
