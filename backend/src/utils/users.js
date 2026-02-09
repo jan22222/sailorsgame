@@ -67,7 +67,7 @@ function userJoin(playerId, socketId, username, room) {
   }
 
   // RECONNECT (was offline)
-  user.username = username;
+  
   user.room = room;
   // abandoned NICHT automatisch zurücksetzen
   setOnline(user, socketId);

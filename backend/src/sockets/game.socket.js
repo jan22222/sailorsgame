@@ -88,6 +88,7 @@ module.exports = function registerGameSockets(io) {
       }
       // Hinweis: Das Game-State-Update wird automatisch durch den Interval (500ms) an alle gesendet
     });
+    
     // 4:1 Trade (kompatibel zu deinem Client, der "trade" sendet)
     socket.on("trade", ({ giveRes, getRes, rate }, cb) => {
       const user = getCurrentUser(socket.id);
@@ -336,7 +337,8 @@ socket.on("enter", (payload, cb) => {
     
           // ✅ wichtig: Creator bekommt die Map direkt
           socket.emit("init", map[room]);
-    
+           io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
+
           io.to(room).emit(
             "message",
             formatMessage(botName, `${username} created room "${room}"`)
@@ -383,6 +385,7 @@ socket.on("joinRoom", ({ playerId, username, room }, cb) => {
     console.log("[rooms]", socket.id, Array.from(socket.rooms));
     socket.emit("init", map[room]);
     socket.emit("gameState", JSON.stringify(state[room]));
+     io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
     cb?.({ ok:true, kind:"reconnect" });
     return;
   }
@@ -398,6 +401,7 @@ socket.on("joinRoom", ({ playerId, username, room }, cb) => {
   console.log("[rooms]", socket.id, Array.from(socket.rooms));
   checkExtendState(user, state);
   socket.emit("init", map[room]);
+   io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
   if (teamComplete(state[room])) startGameInterval(io, room, map);
   cb?.({ ok:true, kind:"new" });
 });
@@ -427,7 +431,7 @@ socket.on("leaveRoom", () => {
 
   // ✅ Connection lost -> Rejoin möglich
   setOffline(user);
-
+ io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
   // optional: AFK grace / timer reset hier (wenn du’s so willst)
   // ...
 

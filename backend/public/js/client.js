@@ -32,6 +32,7 @@ window.socket = socket;
 // ✅ Listener VOR connect/enter registrieren
 socket.on("init", handleInit);
 socket.on("gameState", handleGameState);
+
 socket.on("gameOver", handleGameOver);
 
 socket.on("message", (message) => {
@@ -100,6 +101,12 @@ socket.on("connect", () => {
 socket.on("disconnect", (reason) => {
   console.log("[client] DISCONNECT", reason);
   inGame = false;
+});
+
+socket.on("roomUsers", ({ room, users }) => {
+  console.log("[client] roomUsers", room, users);
+  app.$data.room = room;
+  app.$data.userlisto = users;   // Vue rendert daraus die Namen
 });
 
 // --- canvas init ---
