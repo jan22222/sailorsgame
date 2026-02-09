@@ -108,7 +108,24 @@ socket.on("roomUsers", ({ room, users }) => {
   app.$data.room = room;
   app.$data.userlisto = users;   // Vue rendert daraus die Namen
 });
+socket.on("skipTurn", () => {
+  const user = getCurrentUser(socket.id);
+  if (!user) return;
 
+  const room = user.room;
+
+  const roomState = state[room];
+  if (!roomState) return;
+
+  roomState.turnTime = timeGetter();
+  roomState.activePlayerNumber =
+    (roomState.activePlayerNumber % roomState.quantity) + 1;
+
+  io.to(room).emit("roomUsers", {
+    room,
+    users: getRoomUsers(room),
+  });
+});
 // --- canvas init ---
 function handleInit(map) {
   console.log("[client] INIT received", map ? Object.keys(map).length : map);

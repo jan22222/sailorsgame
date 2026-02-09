@@ -189,6 +189,9 @@
                 </div>
 
                 <counter texto="Points" :coun="points" fill="#4caf50"></counter>
+                <button class="btn btn-warning" @click="skipTurn">
+                    Skip Turn
+                </button>
             </div>
         </div>
     </div>
@@ -215,6 +218,11 @@
                 }
             },
             methods: {
+                skipTurn: function () {
+                    if (window.socket) {
+                        window.socket.emit("skipTurn");
+                    }
+                },
                 trade: function(give, get) { if (window.socket) window.socket.emit("trade", { giveRes: give, getRes: get, rate: 4 }); },
                 houseBuilder: function () { if (window.houseBuild) window.houseBuild(); },
                 shipBuilder: function () { if (window.shipBuild) window.shipBuild(); },

@@ -154,7 +154,31 @@ module.exports = function registerGameSockets(io) {
 
       cb?.({ ok: true });
     });
+socket.on("skipTurn", () => {
+  const user = getCurrentUser(socket.id);
+  if (!user) return;
 
+  const room = user.room;
+  const roomState = state[room];
+  if (!roomState) return;
+
+  // nur aktiver Spieler darf skippen
+  const mySlot = keyByVal(roomState, user.playerId);
+  if (!mySlot) return;
+  if (Number(mySlot) !== Number(roomState.activePlayerNumber)) return;
+
+  // ✅ Timer wirklich resetten
+  roomState.turnTime = timeGetter();  // wichtig: gameLoop berechnet timeDif daraus
+  roomState.timeDif = TURN_SECONDS;   // optional, aber nice
+  roomState.Wurf = "Start";           // optional fürs Setup
+
+  // ✅ aktiven Spieler wechseln
+  roomState.activePlayerNumber =
+    (roomState.activePlayerNumber % roomState.quantity) + 1;
+
+  // ✅ SOFORT an Clients pushen (damit du nicht auf interval warten musst)
+  emitGameState(io, room, roomState);
+});
     socket.on("trade4to1", ({ fromRes, toRes }, cb) => {
       const user = getCurrentUser(socket.id);
       if (!user) return cb?.({ ok: false, error: "no user" });
