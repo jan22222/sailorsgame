@@ -453,14 +453,19 @@ socket.on("leaveRoom", () => {
   const user = getCurrentUser(socket.id);
   if (!user) return;
 
-  // ✅ Connection lost -> Rejoin möglich
+  const room = user.room;   // ✅ WICHTIG
+
+  // Connection lost -> Rejoin möglich
   setOffline(user);
- io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
-  // optional: AFK grace / timer reset hier (wenn du’s so willst)
-  // ...
+
+  io.to(room).emit("roomUsers", {
+    room,
+    users: getRoomUsers(room)
+  });
 
   console.log("[disconnect] OFFLINE", user.username, user.playerId);
 });
+
 
 
 
