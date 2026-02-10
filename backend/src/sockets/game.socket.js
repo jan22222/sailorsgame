@@ -448,18 +448,35 @@ socket.on("leaveRoom", () => {
   const user = getCurrentUser(socket.id);
   if (!user) return;
 
-  // ✅ Intent: absichtlich raus -> kein Rejoin
+  const room = user.room;
+
   markAbandoned(user);
+  socket.leave(room);
 
-  // optional: nicht mehr Game-Events bekommen
-  socket.leave(user.room);
+  io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
 
-  // UI update
-  io.to(user.room).emit("roomUsers", { room: user.room, users: getRoomUsers(user.room) });
+  // ✅ NEW: wenn alle im Room abandoned -> room löschen
+  const roomUsers = getRoomUsers(room);
+  const allAbandoned = roomUsers.length > 0 && roomUsers.every(u => u.abandoned === true);
 
-  console.log("[leaveRoom] HARD", user.username, user.playerId);
+  if (allAbandoned) {
+    cleanupRoom(io, room);
+    return;
+  }
+
+  emitRooms(io);
 });
 
+function cleanupRoom(io, room) {
+  if (roomIntervals[room]) {
+    clearInterval(roomIntervals[room]);
+    delete roomIntervals[room];
+  }
+  delete state[room];
+  delete map[room];
+  emitRooms(io);
+  console.log("[room] deleted", room);
+}
 
  socket.on("disconnect", () => {
   const user = getCurrentUser(socket.id);
