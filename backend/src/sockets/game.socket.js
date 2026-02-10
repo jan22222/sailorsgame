@@ -161,24 +161,23 @@ socket.on("skipTurn", () => {
   const room = user.room;
   const roomState = state[room];
   if (!roomState) return;
-
-  // nur aktiver Spieler darf skippen
-  const mySlot = keyByVal(roomState, user.playerId);
+  const mySlot = keyByVal(roomState, user.playerId);  
   if (!mySlot) return;
-  if (Number(mySlot) !== Number(roomState.activePlayerNumber)) return;
 
-  // ✅ Timer wirklich resetten
-  roomState.turnTime = timeGetter();  // wichtig: gameLoop berechnet timeDif daraus
-  roomState.timeDif = TURN_SECONDS;   // optional, aber nice
-  roomState.Wurf = "Start";           // optional fürs Setup
+  // ✅ nur aktiver Spieler darf skippen
+  if (Number(mySlot) !== Number(roomState.activePlayerNumber)) {
+    socket.emit("userError", { text: "Not your turn." }); // optional
+    return;
+  }
+  advanceTurn(roomState);              // Turn wechseln
+  // ✅ Wenn wir im normalen Spiel sind: sofort würfeln für den neuen aktiven Spieler
+  if (roomState.phase === "main") {
+    neuerWurf(roomState, map, room);
+  }
 
-  // ✅ aktiven Spieler wechseln
-  roomState.activePlayerNumber =
-    (roomState.activePlayerNumber % roomState.quantity) + 1;
-
-  // ✅ SOFORT an Clients pushen (damit du nicht auf interval warten musst)
-  emitGameState(io, room, roomState);
+  emitGameState(io, room, roomState); // sofort aktualisieren
 });
+
     socket.on("trade4to1", ({ fromRes, toRes }, cb) => {
       const user = getCurrentUser(socket.id);
       if (!user) return cb?.({ ok: false, error: "no user" });
@@ -486,8 +485,14 @@ function startGameInterval(io, room, map) {
     return;
   }
 
-  state[room].turnTime = timeGetter();
-  state[room].timeDif = TURN_SECONDS;
+state[room].phase = "setup";
+state[room].setupIndex = 0;
+state[room].setupBuiltThisTurn = false;
+state[room].setupOrder = getSetupOrder(state[room].quantity); // z.B. [1,2,2,1]
+state[room].activePlayerNumber = state[room].setupOrder[0];
+state[room].Wurf = "Start";
+state[room].turnTime = timeGetter();
+state[room].timeDif = TURN_SECONDS;
 
   // ✅ NEW: rounds left
   state[room].roundsLeft = TOTAL_ROUNDS;
@@ -527,34 +532,31 @@ function gameLoop(room, roomState, map) {
   const now = timeGetter();
   roomState.timeDif = TURN_SECONDS - (now - roomState.turnTime);
 
-  if (roomState.timeDif <= 0) {
-    const prevActive = roomState.activePlayerNumber;
+if (roomState.timeDif <= 0) {
+  advanceTurn(roomState);
 
-    roomState.turnTime = timeGetter();
-    roomState.activePlayerNumber =
-      (roomState.activePlayerNumber % roomState.quantity) + 1;
-
-    // ✅ NEW: rounds tick when we wrap back to player 1
-    if (prevActive !== 1 && roomState.activePlayerNumber === 1) {
-      roomState.roundsLeft -= 1;
-      console.log("[round] roundsLeft =", roomState.roundsLeft);
-    }
-
+  // ✅ nur im MAIN würfeln
+  if (roomState.phase === "main") {
+    // hier kannst du deine bestehende roundsLeft / neuerWurf Logik lassen
+    // oder nur "neuerWurf" callen wie bisher
     neuerWurf(roomState, map, room);
   }
 
-  return { ended: false };
+  
+}
+
+return { ended: false };
+ 
 }
 
 function neuerWurf(roomState, map, room) {
   // TOTAL_ROUNDS = 17. Runden 17 und 16 sind die Aufbauphasen.
   // Erst ab Runde 15 (roundsLeft <= 15) wird gewürfelt.
   
-  if (roomState.roundsLeft > (TOTAL_ROUNDS - 2)) {
-    console.log("[game] Aufbauphase: Kein Wurf in Runde", roomState.roundsLeft);
-    roomState.Wurf = "Start"; // Text statt 0 anzeigen
-    return; // Funktion abbrechen, keine Ressourcen verteilen
-  }
+if (roomState.phase === "setup") {
+  roomState.Wurf = "Start";
+  return;
+}
 
   const num = Math.floor(Math.random() * 11 + 2); // Korrektur: 2-12
   roomState.Wurf = num;
@@ -731,7 +733,39 @@ function checkExtendState(user, state) {
   }
   return false;
 }
+function getSetupOrder(n) {
+  const fwd = Array.from({ length: n }, (_, i) => i + 1);
+  const bwd = Array.from({ length: n }, (_, i) => n - i);
+  return fwd.concat(bwd);
+}
+function advanceTurn(roomState) {
+  roomState.turnTime = timeGetter();
+  roomState.timeDif = TURN_SECONDS;
 
+  // ✅ SETUP: 1..N..1
+  if (roomState.phase === "setup") {
+    roomState.setupBuiltThisTurn = false;
+    roomState.Wurf = "Start";
+
+    roomState.setupIndex += 1;
+
+    // Setup fertig?
+    if (roomState.setupIndex >= roomState.setupOrder.length) {
+    roomState.phase = "main";     // ✅ HIER
+    roomState.activePlayerNumber = 1;
+    roomState.turnTime = timeGetter();
+    roomState.timeDif = TURN_SECONDS;
+    return;
+  }
+
+    roomState.activePlayerNumber = roomState.setupOrder[roomState.setupIndex];
+    return;
+  }
+
+  // ✅ MAIN: normal round-robin
+  roomState.activePlayerNumber =
+    (roomState.activePlayerNumber % roomState.quantity) + 1;
+}
 function extendState(user, state) {
   const room = user.room;
 
