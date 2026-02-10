@@ -19,10 +19,10 @@ const {
 const botName = "AutoBot";
 // ====== STEP 1 CONFIG (small steps) ======
 const TURN_SECONDS = 60;     // ✅ was 30
-const TOTAL_ROUNDS = 17;     // ✅ neues Spielziel
+
 const MAX_PLAYERS = 4;       // ✅ cap
 const USERNAME_MAX = 12;     // ✅ cap
-
+const WIN_POINTS = 30;
 let gameActive = false; // global (später pro room)
 let state = {};
 let map = {};
@@ -494,8 +494,7 @@ state[room].Wurf = "Start";
 state[room].turnTime = timeGetter();
 state[room].timeDif = TURN_SECONDS;
 
-  // ✅ NEW: rounds left
-  state[room].roundsLeft = TOTAL_ROUNDS;
+
 
   roomIntervals[room] = setInterval(() => {
   try {
@@ -520,14 +519,18 @@ function gameLoop(room, roomState, map) {
   if (!roomState) return { ended: false };
 
   // ✅ NEW: end by rounds
-  if (roomState.roundsLeft <= 0) {
+  if (watchForWinner(roomState)) {
     return { ended: true, payload: computeGameOverPayload(roomState) };
   }
 
   // keep old winner rule (points>=50) for now (doesn't hurt)
-  if (watchForWinner(roomState)) {
-    return { ended: true, payload: computeGameOverPayload(roomState) };
+function watchForWinner(roomState) {
+  for (let i = 1; i <= roomState.playerCount; i++) {
+    if (roomState[i]?.points >= WIN_POINTS) return true;
   }
+  return false;
+}
+
 
   const now = timeGetter();
   roomState.timeDif = TURN_SECONDS - (now - roomState.turnTime);
@@ -565,34 +568,18 @@ if (roomState.phase === "setup") {
 // ================= HELPERS FOR SHIP =================
 function enoughResourcesShip(state, user) {
   const n = keyByVal(state[user.room], user.playerId);
-  // Kosten laut Wunsch: 3 Weizen (ID 2), 5 Erz (ID 1)
   return (
-    state[user.room][n][2] >= 3 && 
-    state[user.room][n][1] >= 5
+    state[user.room][n][2] >= 5 &&  // wheat
+    state[user.room][n][1] >= 5     // ore
   );
 }
 
 function takeResourcesShip(state, user) {
   const n = keyByVal(state[user.room], user.playerId);
-  state[user.room][n][2] -= 3; // Weizen abziehen
-  state[user.room][n][1] -= 5; // Erz abziehen
-}
-// ================= HELPERS FOR SHIP =================
-
-function enoughResourcesShip(state, user) {
-  const n = keyByVal(state[user.room], user.playerId);
-  // Kosten: 3 Weizen (3), 5 Erz (5)
-  return (
-    state[user.room][n][3] >= 3 &&
-    state[user.room][n][5] >= 5
-  );
+  state[user.room][n][2] -= 5; // wheat
+  state[user.room][n][1] -= 5; // ore
 }
 
-function takeResourcesShip(state, user) {
-  const n = keyByVal(state[user.room], user.playerId);
-  state[user.room][n][3] -= 3;
-  state[user.room][n][5] -= 5;
-}
 // ================= BUILD SHIP =================
 
 function buildShip(id, state, user) {
@@ -612,6 +599,15 @@ function buildShip(id, state, user) {
   if (!checkBuildingPossible(id, state, user)) {
     return { ok: false, message: "You cannot build there (distance rule)." };
   }
+  const n = keyByVal(roomState, user.playerId);
+  console.log("[ship cost check]", {
+    player: user.username,
+    n,
+    wheat: roomState[n][2],
+    ore: roomState[n][1],
+    needWheat: 5,
+    needOre: 5,
+  });
 
   if (!enoughResourcesShip(state, user)) {
     return { ok: false, message: "Not enough resources for a ship (3 Wheat, 5 Ore)." };
@@ -724,7 +720,7 @@ function createState(user, state, room, quantity) {
     activePlayerNumber: 1,
     playerCount: 1,
     quantity,
-    roundsLeft: TOTAL_ROUNDS, // ✅ new
+
     net: createNet(),
     1: {
       username: sanitizeUsername(user.username),
