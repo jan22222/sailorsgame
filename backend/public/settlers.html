@@ -81,30 +81,75 @@
         .res-block .inside-item {
             width: 50px; height: 50px; font-size: 25px;
         }
-        .help-button {
-  position: fixed;
-  bottom: 22px;
-  right: 22px;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.75);
-  color: #ffffff;
-  font-size: 36px;          /* 🔥 größer ? */
-  font-weight: 900;
-  text-align: center;
-  line-height: 56px;
-  text-decoration: none;
-  z-index: 100000;
-  box-shadow: 0 0 18px rgba(0,0,0,0.5);
-  transition: transform 0.15s ease, background 0.15s ease;
-}
+                .help-button {
+        position: fixed;
+        bottom: 22px;
+        right: 22px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.75);
+        color: #ffffff;
+        font-size: 36px;          /* 🔥 größer ? */
+        font-weight: 900;
+        text-align: center;
+        line-height: 56px;
+        text-decoration: none;
+        z-index: 100000;
+        box-shadow: 0 0 18px rgba(0,0,0,0.5);
+        transition: transform 0.15s ease, background 0.15s ease;
+        }
 
-.help-button:hover {
-  transform: scale(1.12);
-  background: rgba(255, 255, 255, 0.95);
-  color: #1c3ac0;
-}
+        .help-button:hover {
+        transform: scale(1.12);
+        background: rgba(255, 255, 255, 0.95);
+        color: #1c3ac0;
+        }
+
+        .techlog{
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        width: min(520px, calc(100vw - 32px));
+        max-height: 40vh;
+        overflow: auto;
+
+        background: #061b0a;
+        border: 1px solid #1cff4a;
+        box-shadow: 0 0 0 1px rgba(28,255,74,0.2), 0 10px 30px rgba(0,0,0,0.45);
+        border-radius: 12px;
+
+        color: #1cff4a;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        line-height: 1.35;
+
+        padding: 10px 12px;
+        opacity: 0.95;
+        }
+
+        .techlog .row{
+        display: flex;
+        gap: 10px;
+        margin: 6px 0;
+        }
+
+        .techlog .ts{
+        opacity: 0.75;
+        white-space: nowrap;
+        }
+
+        .techlog .msg{
+        white-space: pre-wrap;
+        word-break: break-word;
+        }
+
+        .techlog .kind{
+        opacity: 0.9;
+        }
+
+        .techlog .kind.error{ color: #1cff4a; } /* bewusst grün */
+
     </style>
 </head>
 
@@ -123,6 +168,7 @@
             </ul>
             <a class="btn btn-danger" @click="leave" style="color: white;">Leave</a>
         </header>
+        <div id="techLog" class="techlog" aria-live="polite"></div>
 
         <div class="flex-container resource-bar" style="background: #2c3e50; padding: 10px; display: flex; justify-content: center; gap: 15px;">
     

@@ -42,6 +42,12 @@ socket.on("message", (message) => {
   if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
 });
 
+socket.on("userError", (e) => {
+  techLog(toEnglishError(e), "error");
+});
+socket.on("error", (e) => {
+  techLog(toEnglishError(e), "error");
+});
 // 3) enter-flow als Funktion (wird bei jedem connect benutzt)
 function runEnterFlow() {
   console.log("[client] runEnterFlow", { socketId: socket.id, playerId, username, room, isCreate });
@@ -269,4 +275,55 @@ function showTurnToast(name) {
   el.classList.add("show");
   clearTimeout(showTurnToast._t);
   showTurnToast._t = setTimeout(() => el.classList.remove("show"), 1200);
+}
+
+function techLog(message, kind = "error") {
+  const box = document.getElementById("techLog");
+  if (!box) return console.log("[techLog missing]", message);
+
+  const ts = new Date().toLocaleTimeString();
+  const row = document.createElement("div");
+  row.className = "row";
+
+  const tsEl = document.createElement("div");
+  tsEl.className = "ts";
+  tsEl.textContent = ts;
+
+  const kindEl = document.createElement("div");
+  kindEl.className = `kind ${kind}`;
+  kindEl.textContent = kind.toUpperCase();
+
+  const msgEl = document.createElement("div");
+  msgEl.className = "msg";
+  msgEl.textContent = String(message);
+
+  row.appendChild(tsEl);
+  row.appendChild(kindEl);
+  row.appendChild(msgEl);
+
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+
+  // optional: nicht unendlich wachsen
+  const MAX = 80;
+  while (box.children.length > MAX) box.removeChild(box.firstChild);
+}
+
+// deutsche/unklare server-texte -> englische, technische messages
+function toEnglishError(e) {
+  const raw = (e && (e.text || e.message || e.reason)) ? String(e.text || e.message || e.reason) : "Unknown error";
+
+  const map = {
+    "Not logged in.": "Not authenticated (no user session on server).",
+    "Not your turn.": "Action rejected: not your turn.",
+    "Room state not found.": "Room state missing on server (state[room] not found).",
+    "Game is not active yet.": "Game not active yet (waiting for players/start).",
+    "Invalid or occupied location.": "Invalid build location or already occupied.",
+    "You cannot build there (distance rule).": "Build blocked by distance/connection rule.",
+    "You cannot build there (distance/connection rule).": "Build blocked by distance/connection rule.",
+    "Not enough resources to build a boat.": "Not enough resources to build a house.",
+    "Not enough resources for a ship (3 Wheat, 5 Ore).": "Not enough resources for a ship.",
+  };
+
+  return map[raw] || raw;
 }

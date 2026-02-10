@@ -604,7 +604,11 @@ function buildShip(id, state, user) {
     return { ok: false, message: "Not your turn." };
   }
 
-  // Nutzt die gleiche Abstandsregel wie das Haus
+  // ✅ SETUP: nur 1 Build pro Zug
+  if (roomState.phase === "setup" && roomState.setupBuiltThisTurn) {
+    return { ok: false, message: "Setup: only 1 build per turn." };
+  }
+
   if (!checkBuildingPossible(id, state, user)) {
     return { ok: false, message: "You cannot build there (distance rule)." };
   }
@@ -619,13 +623,19 @@ function buildShip(id, state, user) {
 
   const number = keyByVal(roomState, user.playerId);
   roomState.net[id].playerNumber = Number(number);
-  roomState.net[id].value = 2; // Ein Schiff zählt doppelt bei Ressourcen-Ertrag
-  roomState[number].points += 2; // Mehr Punkte für ein großes Objekt
+  roomState.net[id].value = 2;
+  roomState[number].points += 2;
 
   takeResourcesShip(state, user);
 
+  // ✅ SETUP: markieren, dass in diesem Zug gebaut wurde
+  if (roomState.phase === "setup") {
+    roomState.setupBuiltThisTurn = true;
+  }
+
   return { ok: true };
 }
+
 // ================= BUILD HOUSE =================
 
 function buildHouse(id, state, user) {
@@ -636,6 +646,11 @@ function buildHouse(id, state, user) {
 
   if (!checkIfPlayerActive(state, user)) {
     return { ok: false, message: "Not your turn." };
+  }
+
+  // ✅ SETUP: nur 1 Build pro Zug
+  if (roomState.phase === "setup" && roomState.setupBuiltThisTurn) {
+    return { ok: false, message: "Setup: only 1 build per turn." };
   }
 
   if (!checkBuildingPossible(id, state, user)) {
@@ -661,11 +676,13 @@ function buildHouse(id, state, user) {
 
   takeResourcesHouse(state, user);
 
+  // ✅ SETUP: markieren, dass in diesem Zug gebaut wurde
+  if (roomState.phase === "setup") {
+    roomState.setupBuiltThisTurn = true;
+  }
+
   return { ok: true };
 }
-
-
-
 // ================= HELPERS =================
 
 function checkIfPlayerActive(state, user) {
@@ -713,8 +730,8 @@ function createState(user, state, room, quantity) {
       username: sanitizeUsername(user.username),
       socketId: user.socketId,
       playerId: user.playerId,
-      1: 0,
-      2: 0,
+      1: 5,
+      2: 5,
       3: 2,
       4: 2,
       5: 2,
@@ -782,8 +799,8 @@ function extendState(user, state) {
     socketId: user.socketId,
 
     // Ressourcen (1..5) konsistent wie in createState
-    1: 0,
-    2: 0,
+    1: 5,
+    2: 5,
     3: 2,
     4: 2,
     5: 2,
