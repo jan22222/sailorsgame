@@ -15,6 +15,8 @@ const {
   setOffline,
   markAbandoned,
 } = require("../utils/users");
+let techSeq = 0;   // globale Sequenznummer für Debug
+
 let IO = null;
 const botName = "AutoBot";
 // ====== STEP 1 CONFIG (small steps) ======
@@ -576,18 +578,26 @@ return { ended: false };
  
 }
 
-function neuerWurf(roomState, map, room) {
-  // TOTAL_ROUNDS = 17. Runden 17 und 16 sind die Aufbauphasen.
-  // Erst ab Runde 15 (roundsLeft <= 15) wird gewürfelt.
-  
-if (roomState.phase === "setup") {
-  roomState.Wurf = "Start";
-  emitTech(io, room, "SETUP: No harvesting. Build only.");
-
-  return;
+function roll2to12() {
+  return Math.floor(Math.random() * 11) + 2; // 2..12
 }
 
-  const num = Math.floor(Math.random() * 11 + 2); // Korrektur: 2-12
+function neuerWurf(roomState, map, room) {
+  if (roomState.phase === "setup") {
+    roomState.Wurf = "Start";
+    return;
+  }
+
+  let num = roll2to12();
+
+  if (num === 7) {
+    const reroll = roll2to12();
+    num = (reroll === 7) ? 7 : reroll;
+
+    // optional tech info
+    // emitTech(io, room, reroll === 7 ? "7 confirmed (double roll)" : `7 rerolled to ${num}`);
+  }
+
   roomState.Wurf = num;
   distributeResources(map[room], num, room);
 }

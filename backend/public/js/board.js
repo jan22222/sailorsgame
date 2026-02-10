@@ -231,7 +231,7 @@ function resourceToColor(res) {
     case 3: return "#a5d02a";   // sheep
     case 4: return "darkgreen"; // wood
     case 5: return "#838383";   // metals/erz
-    case 6: return "#000000";   // water
+    case 6: return "#9fd7ff"; // water
     case 7: return "#666600";   // desert
     default: return "#444";
   }
