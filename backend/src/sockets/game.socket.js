@@ -15,7 +15,7 @@ const {
   setOffline,
   markAbandoned,
 } = require("../utils/users");
-
+let IO = null;
 const botName = "AutoBot";
 // ====== STEP 1 CONFIG (small steps) ======
 const TURN_SECONDS = 60;     // ✅ was 30
@@ -48,6 +48,8 @@ function emitRooms(io) {
   io.emit("roomsList", getRoomsSnapshot());
 }
 
+
+
 // ---------------- SMALL HELPERS ----------------
 
 function sanitizeUsername(name) {
@@ -60,9 +62,19 @@ function clampInt(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
+function emitTech(IO, room, msg) {
+  IO.to(room).emit("tech", msg);
+}
+
+function emitTechToSocket(socket, msg) {
+  socket.emit("tech", msg);
+}
+
+
 // ---------------- SOCKET REGISTRATION ----------------
 
 module.exports = function registerGameSockets(io) {
+  IO = io;
   io.on("connection", (socket) => {
     console.log("[client] CONNECT socket.id =", socket.id);
 
@@ -169,13 +181,15 @@ socket.on("skipTurn", () => {
     socket.emit("userError", { text: "Not your turn." }); // optional
     return;
   }
-  advanceTurn(roomState);              // Turn wechseln
+  advanceTurn(roomState, room);            // Turn wechseln
   // ✅ Wenn wir im normalen Spiel sind: sofort würfeln für den neuen aktiven Spieler
   if (roomState.phase === "main") {
     neuerWurf(roomState, map, room);
   }
 
   emitGameState(io, room, roomState); // sofort aktualisieren
+  emitTech(io, room, `SKIP: ${user.username} skipped the turn.`);
+
 });
 
     socket.on("trade4to1", ({ fromRes, toRes }, cb) => {
@@ -213,10 +227,7 @@ socket.on("skipTurn", () => {
           toRes,
           before,
         });
-        socket.emit(
-          "message",
-          formatMessage(botName, `Not enough resources for 4:1 trade.`)
-        );
+        emitTech(IO, room, "Not enough resources for 4:1 trade.");
         return cb?.({ ok: false, error: "not enough", before });
       }
 
@@ -486,6 +497,9 @@ function startGameInterval(io, room, map) {
   }
 
 state[room].phase = "setup";
+
+emitTech(IO, room, "MODE: SETUP");
+
 state[room].setupIndex = 0;
 state[room].setupBuiltThisTurn = false;
 state[room].setupOrder = getSetupOrder(state[room].quantity); // z.B. [1,2,2,1]
@@ -504,7 +518,17 @@ state[room].timeDif = TURN_SECONDS;
     if (!result.ended) {
       emitGameState(io, room, state[room]);
     } else {
+      emitTech(IO, room, "GAME OVER");
+      if (payload.draw) {
+        emitTech(io, room, `RESULT: DRAW (${payload.bestPoints} points)`);
+      } else {
+        const w = payload.winnerNumber;
+        const name = state[room]?.[w]?.username || `Player ${w}`;
+        emitTech(io, room, `WINNER: ${name} (${payload.bestPoints} points)`);
+      }
+
       emitGameOver(io, room, result.payload);
+
       clearInterval(roomIntervals[room]);
       delete roomIntervals[room];
     }
@@ -536,7 +560,7 @@ function watchForWinner(roomState) {
   roomState.timeDif = TURN_SECONDS - (now - roomState.turnTime);
 
 if (roomState.timeDif <= 0) {
-  advanceTurn(roomState);
+  advanceTurn(roomState, room);
 
   // ✅ nur im MAIN würfeln
   if (roomState.phase === "main") {
@@ -558,6 +582,8 @@ function neuerWurf(roomState, map, room) {
   
 if (roomState.phase === "setup") {
   roomState.Wurf = "Start";
+  emitTech(io, room, "SETUP: No harvesting. Build only.");
+
   return;
 }
 
@@ -751,11 +777,10 @@ function getSetupOrder(n) {
   const bwd = Array.from({ length: n }, (_, i) => n - i);
   return fwd.concat(bwd);
 }
-function advanceTurn(roomState) {
+function advanceTurn(roomState, room) {
   roomState.turnTime = timeGetter();
   roomState.timeDif = TURN_SECONDS;
 
-  // ✅ SETUP: 1..N..1
   if (roomState.phase === "setup") {
     roomState.setupBuiltThisTurn = false;
     roomState.Wurf = "Start";
@@ -764,21 +789,26 @@ function advanceTurn(roomState) {
 
     // Setup fertig?
     if (roomState.setupIndex >= roomState.setupOrder.length) {
-    roomState.phase = "main";     // ✅ HIER
-    roomState.activePlayerNumber = 1;
-    roomState.turnTime = timeGetter();
-    roomState.timeDif = TURN_SECONDS;
+      roomState.phase = "main";
+      emitTech(IO, room, "MODE: MAIN");
+
+      roomState.activePlayerNumber = 1;
+      roomState.turnTime = timeGetter();
+      roomState.timeDif = TURN_SECONDS;
+      return;
+    }
+
+    roomState.activePlayerNumber =
+      roomState.setupOrder[roomState.setupIndex];
+
     return;
   }
 
-    roomState.activePlayerNumber = roomState.setupOrder[roomState.setupIndex];
-    return;
-  }
-
-  // ✅ MAIN: normal round-robin
+  // normal game
   roomState.activePlayerNumber =
     (roomState.activePlayerNumber % roomState.quantity) + 1;
 }
+
 function extendState(user, state) {
   const room = user.room;
 
@@ -887,10 +917,22 @@ function distributeResources(roomMap, num, room) {
         const pn = state[room].net[p].playerNumber;
         if (pn > 0) {
           state[room][pn][res] += state[room].net[p].value;
+          emitTech(IO, room, `HARVEST: ${state[room].net[p].value} + ${resName(res)} (roll ${num})`);
+
         }
       });
     }
   });
+}
+function resName(res) {
+  switch (Number(res)) {
+    case 1: return "MUD";
+    case 2: return "WHEAT";
+    case 3: return "SHEEP";
+    case 4: return "WOOD";
+    case 5: return "ORE";
+    default: return "UNKNOWN";
+  }
 }
 
 function findAreas(roomMap, num) {

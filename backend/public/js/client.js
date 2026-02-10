@@ -108,6 +108,13 @@ socket.on("disconnect", (reason) => {
   console.log("[client] DISCONNECT", reason);
   inGame = false;
 });
+socket.on("tech", (msg) => {
+  techLog(String(msg));
+});
+socket.on("tech", (msg) => {
+  if (Array.isArray(msg)) msg.forEach(m => techLog(String(m)));
+  else techLog(String(msg));
+});
 
 socket.on("roomUsers", ({ room, users }) => {
   console.log("[client] roomUsers", room, users);
