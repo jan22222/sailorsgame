@@ -150,6 +150,29 @@
 
         .techlog .kind.error{ color: #1cff4a; } /* bewusst grün */
 
+        #techBox{
+            position: fixed;
+            right: 12px;
+            bottom: 80px;          /* Platz für Skip Button */
+
+            width: 320px;
+            height: 140px;         /* feste Höhe */
+            overflow: hidden;
+
+            background: #001a00;
+            border: 2px solid #00ff66;
+            color: #00ff66;
+            font-family: monospace;
+            font-size: 13px;
+
+            padding: 8px;
+            box-shadow: 0 0 10px #00ff66;
+        }
+        .techLine{
+            margin-bottom:4px;
+        }
+
+
     </style>
 </head>
 
@@ -168,7 +191,7 @@
             </ul>
             <a class="btn btn-danger" @click="leave" style="color: white;">Leave</a>
         </header>
-        <div id="techLog" class="techlog" aria-live="polite"></div>
+        <div id="techBox" class="techlog" aria-live="polite"></div>
 
         <div class="flex-container resource-bar" style="background: #2c3e50; padding: 10px; display: flex; justify-content: center; gap: 15px;">
     
@@ -235,7 +258,7 @@
                 </div>
 
                 <counter texto="Points" :coun="points" fill="#4caf50"></counter>
-                <button class="btn btn-warning" @click="skipTurn">
+                <button id="skipBtn" class="btn btn-warning" @click="skipTurn">
                     Skip Turn
                 </button>
             </div>
@@ -248,6 +271,22 @@
     <script src="/js/client.js"></script>
 
     <script>
+         function techLog(text){
+            const box = document.getElementById("techBox");
+            if(!box) return;
+
+            const line = document.createElement("div");
+            line.className = "techLine";
+            line.textContent = text;
+
+            box.appendChild(line);
+
+            // nur letzte 5 behalten
+            while(box.children.length > 5){
+                box.removeChild(box.firstChild);
+            }
+        }
+
         function qsParam(name) { return new URLSearchParams(window.location.search).get(name); }
 
         var app = new Vue({
