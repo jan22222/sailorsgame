@@ -478,22 +478,25 @@ function cleanupRoom(io, room) {
   console.log("[room] deleted", room);
 }
 
- socket.on("disconnect", () => {
+socket.on("disconnect", () => {
   const user = getCurrentUser(socket.id);
   if (!user) return;
 
-  const room = user.room;   // ✅ WICHTIG
+  const room = user.room;
 
-  // Connection lost -> Rejoin möglich
-  setOffline(user);
+  if (state[room]?.gameOver) {
+    markAbandoned(user); // game ist vorbei -> kein rejoin nötig
+  } else {
+    setOffline(user);    // game läuft -> rejoin möglich
+  }
 
-  io.to(room).emit("roomUsers", {
-    room,
-    users: getRoomUsers(room)
-  });
+  io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
 
-  console.log("[disconnect] OFFLINE", user.username, user.playerId);
+  if (state[room]?.gameOver && roomAllUsersOffline(room)) {
+    cleanupRoom(io, room);
+  }
 });
+
 
 
 
@@ -509,54 +512,58 @@ function startGameInterval(io, room, map) {
 
   if (!state[room]) return;
 
-  // ✅ NEW: do not start twice
+  // ✅ do not start twice
   if (roomIntervals[room]) {
     console.log("[game] interval already running for", room);
     return;
   }
 
-state[room].phase = "setup";
+  // --- SETUP init ---
+  state[room].phase = "setup";
+  emitTech(io, room, "MODE: SETUP");
 
-emitTech(IO, room, "MODE: SETUP");
+  state[room].setupIndex = 0;
+  state[room].setupBuiltThisTurn = false;
+  state[room].setupOrder = getSetupOrder(state[room].quantity); // e.g. [1,2,2,1]
+  state[room].activePlayerNumber = state[room].setupOrder[0];
 
-state[room].setupIndex = 0;
-state[room].setupBuiltThisTurn = false;
-state[room].setupOrder = getSetupOrder(state[room].quantity); // z.B. [1,2,2,1]
-state[room].activePlayerNumber = state[room].setupOrder[0];
-state[room].Wurf = "Start";
-state[room].turnTime = timeGetter();
-state[room].timeDif = TURN_SECONDS;
-
-
+  state[room].Wurf = "Start";
+  state[room].turnTime = timeGetter();
+  state[room].timeDif = TURN_SECONDS;
 
   roomIntervals[room] = setInterval(() => {
-  try {
-    if (!state[room]) return;
+    try {
+      if (!state[room]) return;
 
-    const result = gameLoop(room, state[room], map);
-    if (!result.ended) {
-      emitGameState(io, room, state[room]);
-    } else {
-      emitTech(IO, room, "GAME OVER");
-      if (payload.draw) {
-        emitTech(io, room, `RESULT: DRAW (${payload.bestPoints} points)`);
-      } else {
-        const w = payload.winnerNumber;
-        const name = state[room]?.[w]?.username || `Player ${w}`;
-        emitTech(io, room, `WINNER: ${name} (${payload.bestPoints} points)`);
+      const result = gameLoop(room, state[room], map);
+
+      if (!result || result.ended !== true) {
+        emitGameState(io, room, state[room]);
+        return;
       }
 
-      emitGameOver(io, room, result.payload);
+      // --- GAME OVER ---
+      const payload = result.payload || {};
+      emitTech(io, room, "GAME OVER");
+
+      if (payload.draw) {
+        emitTech(io, room, `RESULT: DRAW (${payload.bestPoints ?? "?"} points)`);
+      } else {
+        const w = payload.winnerNumber;
+        const name = state[room]?.[w]?.username || `Player ${w ?? "?"}`;
+        emitTech(io, room, `WINNER: ${name} (${payload.bestPoints ?? "?"} points)`);
+      }
+
+      emitGameOver(io, room, payload);
 
       clearInterval(roomIntervals[room]);
       delete roomIntervals[room];
+    } catch (err) {
+      console.error("!!! CRITICAL ERROR IN GAMELOOP !!!", err);
     }
-  } catch (err) {
-    console.error("!!! CRITICAL ERROR IN GAMELOOP !!!", err);
-    // Das verhindert, dass der Loop lautlos stirbt
-  }
-}, 500);
+  }, 500);
 }
+
 
 function gameLoop(room, roomState, map) {
   if (!roomState) return { ended: false };
@@ -623,6 +630,9 @@ function enoughResourcesShip(state, user) {
   const n = keyByVal(state[user.room], user.playerId);
   return (
     state[user.room][n][2] >= 5 &&  // wheat
+    state[user.room][n][3] >= 2 &&
+    state[user.room][n][4] >= 1 &&
+    state[user.room][n][5] >= 2 &&
     state[user.room][n][1] >= 5     // ore
   );
 }
@@ -631,6 +641,9 @@ function takeResourcesShip(state, user) {
   const n = keyByVal(state[user.room], user.playerId);
   state[user.room][n][2] -= 5; // wheat
   state[user.room][n][1] -= 5; // ore
+  state[user.room][n][3] -= 2;
+  state[user.room][n][4] -= 1;
+  state[user.room][n][5] -= 2;
 }
 
 // ================= BUILD SHIP =================
@@ -781,9 +794,9 @@ function createState(user, state, room, quantity) {
       playerId: user.playerId,
       1: 5,
       2: 5,
-      3: 2,
-      4: 2,
-      5: 2,
+      3: 4,
+      4: 4,
+      5: 4,
       points: 0,
       color: color(1),
     },
@@ -854,9 +867,9 @@ function extendState(user, state) {
     // Ressourcen (1..5) konsistent wie in createState
     1: 5,
     2: 5,
-    3: 2,
-    4: 2,
-    5: 2,
+    3: 4,
+    4: 4,
+    5: 4,
 
     points: 0,
     color: color(n),
@@ -898,6 +911,16 @@ function computeGameOverPayload(roomState) {
       winners.push(i);
     }
   }
+function endGame(io, room, payload) {
+  if (!state[room]) return;
+
+  state[room].gameOver = true;
+  state[room].endedAt = Date.now();
+  state[room].gameOverPayload = payload;
+
+  io.to(room).emit("gameOver", JSON.stringify(payload));
+  emitRooms(io); // damit lobby joinable etc. korrekt ist
+}
 
   const draw = winners.length !== 1;
   const winnerNumber = draw ? null : winners[0];
@@ -906,9 +929,11 @@ function computeGameOverPayload(roomState) {
     draw,
     winnerNumber,
     winners,
+    winnerNames: winners.map(n => roomState[n]?.username || `P${n}`),
     bestPoints: best,
   };
 }
+
 
 // ================= UTIL =================
 
