@@ -349,6 +349,7 @@ module.exports = function registerGameSockets(io) {
     socket.on("createRoom", ({ playerId, username, room, quantity, landscape }) => {
       username = sanitizeUsername(username);
       quantity = clampInt(quantity, 2, MAX_PLAYERS);
+      console.log("[createRoom] landscape =", landscape);
 
       const res = userJoin(playerId, socket.id, username, room);
       if (!res.ok) {
@@ -468,6 +469,11 @@ module.exports = function registerGameSockets(io) {
       // ✅ cleanup if gameOver and everyone offline/abandoned
       if (state[room]?.gameOver && roomAllUsersOffline(room)) {
         cleanupRoom(io, room);
+      }
+        // ✅ NEU: löschen wenn jetzt wirklich alle weg sind (hard ODER soft)
+      if (roomAllGone(room)) {
+       cleanupRoom(io, room);
+       return;
       }
     });
   });
@@ -806,10 +812,15 @@ function computeGameOverPayload(roomState) {
   let best = -Infinity;
   let winners = [];
 
+  const scores = [];
   for (let i = 1; i <= roomState.playerCount; i++) {
     const p = roomState[i];
     if (!p) continue;
+
     const pts = Number(p.points || 0);
+    const name = p.username || `P${i}`;
+
+    scores.push({ n: i, name, points: pts });
 
     if (pts > best) {
       best = pts;
@@ -818,6 +829,9 @@ function computeGameOverPayload(roomState) {
       winners.push(i);
     }
   }
+
+  // sort for display
+  scores.sort((a, b) => b.points - a.points || a.n - b.n);
 
   const draw = winners.length !== 1;
   const winnerNumber = draw ? null : winners[0];
@@ -828,8 +842,10 @@ function computeGameOverPayload(roomState) {
     winners,
     winnerNames: winners.map((n) => roomState[n]?.username || `P${n}`),
     bestPoints: best,
+    scores, // ✅ NEW: full scoreboard
   };
 }
+
 
 // ================= UTIL =================
 
@@ -851,11 +867,111 @@ function createNet() {
 
 function createMap(map, room, landscape) {
   map[room] = {};
+
+  const gen = getLandscapeGenerator(landscape);
+
   for (let i = 1; i < 144; i++) {
-    map[room][i] = algoNormal();
+    map[room][i] = gen(i);   // ✅ landscape wird jetzt angewendet
   }
   return map;
 }
+
+function getLandscapeGenerator(landscape) {
+  const key = String(landscape || "normal").toLowerCase();
+  console.log("erzeugen landscape" + key)
+  switch (key) {
+    case "rich":
+      return algoRich;
+    case "desert":
+      return algoDesert;
+    case "island":
+      return algoIsland;
+    case "normal":
+    default:
+      return algoNormal;
+  }
+}
+
+function algoNormal() {
+  return {
+    num: Math.floor(Math.random() * 10 + 2),
+    res: Math.floor(Math.random() * 6 + 1),
+  };
+}
+function algoRich() {
+  // weighted pick helper (lokal, damit du nichts anderes anlegen musst)
+  function pickWeighted(list) {
+    let total = 0;
+    for (const it of list) total += it.w;
+    let r = Math.random() * total;
+    for (const it of list) {
+      r -= it.w;
+      if (r <= 0) return it.v;
+    }
+    return list[list.length - 1].v;
+  }
+
+  // 🎲 Zahlen: selten 2,3,11,12 – häufig 6 & 8
+  const num = pickWeighted([
+    { v: 2,  w: 1 },
+    { v: 3,  w: 1 },
+    { v: 4,  w: 3 },
+    { v: 5,  w: 4 },
+    { v: 6,  w: 9 },  // 🔥
+    { v: 8,  w: 9 },  // 🔥
+    { v: 9,  w: 4 },
+    { v: 10, w: 3 },
+    { v: 11, w: 1 },
+    { v: 12, w: 1 },
+  ]);
+
+  // 🌍 Ressourcen: kaum Wüste/Wasser (ich nehme an: res=6 ist "desert/empty")
+  // Falls bei dir Wasser ein anderer res-code ist, sag kurz welchen — dann passe ich nur diese Zeile an.
+  const res = pickWeighted([
+    { v: 1, w: 6 }, // MUD
+    { v: 2, w: 7 }, // WHEAT
+    { v: 3, w: 7 }, // SHEEP
+    { v: 4, w: 7 }, // WOOD
+    { v: 5, w: 7 }, // ORE
+    { v: 6, w: 1 }, // DESERT/EMPTY (rare)
+  ]);
+
+  return { num, res };
+}
+// Desert: mehr "leer" (res=6) + etwas weniger hohe Zahlen (optional)
+function algoDesert() {
+  console.log("desert")
+  const desertChance = 0.25; // 25% leer
+  const isDesert = Math.random() < desertChance;
+
+  return {
+    num: Math.floor(Math.random() * 10 + 2),
+    res: isDesert ? 7 : Math.floor(Math.random() * 5 + 1), // 1..5 Ressourcen, 6=leer
+  };
+}
+
+// Island: z.B. mehr wood/sheep (nur als Beispiel)
+function algoIsland() {
+  // weights: [mud,wheat,sheep,wood,ore,empty]
+  const weights = [1, 1, 2, 3, 1, 0.2];
+  const res = weightedPick(weights) + 1; // -> 1..6
+
+  return {
+    num: Math.floor(Math.random() * 10 + 2),
+    res,
+  };
+}
+
+function weightedPick(weights) {
+  const sum = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * sum;
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return i;
+  }
+  return weights.length - 1;
+}
+
 
 function distributeResources(roomMap, num, room) {
   const areas = findAreas(roomMap, num);
@@ -903,4 +1019,14 @@ function algoNormal() {
 
 function color(n) {
   return ["red", "green", "blue", "orange", "pink"][n - 1] || "gray";
+}
+
+function roomAllGone(room) {
+  const roomUsers = getRoomUsers(room);
+
+  // Edge-case: keine User mehr (z.B. nach cleanup aus usersByPlayerId)
+  if (!roomUsers || roomUsers.length === 0) return true;
+
+  // ✅ "egal welcher leave": abandoned ODER offline zählt als weg
+  return roomUsers.every(u => u && (u.abandoned === true || u.isOnline === false));
 }

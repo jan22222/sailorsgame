@@ -232,7 +232,7 @@ function resourceToColor(res) {
     case 4: return "darkgreen"; // wood
     case 5: return "#838383";   // metals/erz
     case 6: return "#9fd7ff"; // water
-    case 7: return "#666600";   // desert
+    case 7: return "#ecece6";   // desert
     default: return "#444";
   }
 }

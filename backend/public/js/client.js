@@ -99,15 +99,30 @@ socket.on("gameOver", (raw) => {
   let p = {};
   try { p = JSON.parse(raw); } catch {}
 
-  const winner = p.draw ? "DRAW" : (p.winnerNames?.[0] || `Player ${p.winnerNumber}`);
+  const winner =
+    p.draw ? "DRAW" : (p.winnerNames?.[0] || `Player ${p.winnerNumber}`);
+
   const best = p.bestPoints ?? "?";
 
-  alert(`GAME OVER\nWinner: ${winner}\nBest points: ${best}`);
+  const lines = [];
+  if (Array.isArray(p.scores) && p.scores.length) {
+    lines.push("SCORES:");
+    for (const s of p.scores) {
+      lines.push(`${s.name}: ${s.points}`);
+    }
+  }
 
-  socket.emit("leaveRoom");              // ✅ hard leave
-  sessionStorage.removeItem("playerId"); // ✅ kein rejoin
+  alert(
+    `GAME OVER\nWinner: ${winner}\nWinning points: ${best}\n\n` +
+    (lines.length ? lines.join("\n") : "")
+  );
+
+  // hard leave
+  if (window.socket) window.socket.emit("leaveRoom");
+  sessionStorage.removeItem("playerId");
   window.location = "../index.html";
 });
+
 
 
 // ✅ WICHTIG: bei JEDEM connect enter erneut starten
