@@ -3,33 +3,26 @@
 const formatMessage = require("../utils/messages");
 const { buildingPossible, findPlacesAroundArea } = require("../utils/netz");
 const {
- userJoin,
+  userJoin,
   getCurrentUser,
-  userLeave,
   getRoomUsers,
-  getUserByPlayerId,
-
-  // helpers if you want them elsewhere
   usersByPlayerId,
-  setOnline,
   setOffline,
   markAbandoned,
 } = require("../utils/users");
-let techSeq = 0;   // globale Sequenznummer für Debug
 
 let IO = null;
 const botName = "AutoBot";
-// ====== STEP 1 CONFIG (small steps) ======
-const TURN_SECONDS = 60;     // ✅ was 30
 
-const MAX_PLAYERS = 4;       // ✅ cap
-const USERNAME_MAX = 12;     // ✅ cap
+// ===== CONFIG =====
+const TURN_SECONDS = 60;
+const MAX_PLAYERS = 4;
+const USERNAME_MAX = 12;
 const WIN_POINTS = 30;
+
 let gameActive = false; // global (später pro room)
 let state = {};
 let map = {};
-
-// ✅ pro room Interval IDs, damit nicht mehrfach gestartet wird
 const roomIntervals = {}; // room -> intervalId
 
 // ---------------- ROOMS LIST HELPERS ----------------
@@ -41,7 +34,8 @@ function getRoomsSnapshot() {
       room,
       playerCount: s.playerCount ?? 0,
       quantity: s.quantity ?? 0,
-      joinable: (s.playerCount ?? 0) < (s.quantity ?? 0),
+      joinable:
+        !s.gameOver && (s.playerCount ?? 0) < (s.quantity ?? 0), // ✅ joinable false wenn gameOver
     }))
     .sort((a, b) => a.room.localeCompare(b.room));
 }
@@ -49,8 +43,6 @@ function getRoomsSnapshot() {
 function emitRooms(io) {
   io.emit("roomsList", getRoomsSnapshot());
 }
-
-
 
 // ---------------- SMALL HELPERS ----------------
 
@@ -64,19 +56,62 @@ function clampInt(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
-function emitTech(IO, room, msg) {
-  IO.to(room).emit("tech", msg);
+function emitTech(io, room, msg) {
+  if (!io || !room) return;
+  io.to(room).emit("tech", msg);
 }
 
 function emitTechToSocket(socket, msg) {
   socket.emit("tech", msg);
 }
 
+function roomAllUsersOffline(room) {
+  const ru = getRoomUsers(room);
+  if (!ru || ru.length === 0) return true;
+  return ru.every((u) => u.isOnline === false);
+}
+
+function cleanupRoom(io, room) {
+  if (roomIntervals[room]) {
+    clearInterval(roomIntervals[room]);
+    delete roomIntervals[room];
+  }
+  delete state[room];
+  delete map[room];
+  emitRooms(io);
+  console.log("[room] deleted", room);
+}
+
+// ✅ single source of truth for game over
+function endGame(io, room, payload) {
+  if (!state[room]) return;
+  if (state[room].gameOver) return; // ✅ prevent double end
+
+  state[room].gameOver = true;
+  state[room].gameOverPayload = payload || {};
+  state[room].gameOverAt = Date.now();
+
+  emitTech(io, room, "GAME OVER");
+
+  // winner line (tech)
+  const p = state[room].gameOverPayload;
+  if (p.draw) {
+    emitTech(io, room, `RESULT: DRAW (${p.bestPoints ?? "?"} points)`);
+  } else {
+    const w = p.winnerNumber;
+    const name = state[room]?.[w]?.username || `Player ${w ?? "?"}`;
+    emitTech(io, room, `WINNER: ${name} (${p.bestPoints ?? "?"} points)`);
+  }
+
+  io.to(room).emit("gameOver", JSON.stringify(state[room].gameOverPayload));
+  emitRooms(io); // lobby refresh
+}
 
 // ---------------- SOCKET REGISTRATION ----------------
 
 module.exports = function registerGameSockets(io) {
   IO = io;
+
   io.on("connection", (socket) => {
     console.log("[client] CONNECT socket.id =", socket.id);
 
@@ -87,26 +122,30 @@ module.exports = function registerGameSockets(io) {
     // Lobby: sofort Liste schicken
     socket.emit("roomsList", getRoomsSnapshot());
     socket.on("listRooms", () => socket.emit("roomsList", getRoomsSnapshot()));
-// -------- SHIP --------
+
+    // -------- SHIP --------
     socket.on("ship", (id) => {
       const user = getCurrentUser(socket.id);
       if (!user) {
-        socket.emit("userError", { text: "Not logged in." });
+        emitTechToSocket(socket, "ERROR: Not logged in.");
+        return;
+      }
+      if (state[user.room]?.gameOver) {
+        emitTechToSocket(socket, "ERROR: Game is over.");
         return;
       }
 
       const res = buildShip(id, state, user);
-
       if (res && res.ok === false) {
-        socket.emit("userError", { text: res.message });
+        emitTechToSocket(socket, `ERROR: ${res.message}`);
       }
-      // Hinweis: Das Game-State-Update wird automatisch durch den Interval (500ms) an alle gesendet
     });
-    
-    // 4:1 Trade (kompatibel zu deinem Client, der "trade" sendet)
+
+    // 4:1 Trade
     socket.on("trade", ({ giveRes, getRes, rate }, cb) => {
       const user = getCurrentUser(socket.id);
       if (!user) return cb?.({ ok: false, error: "no user" });
+      if (state[user.room]?.gameOver) return cb?.({ ok: false, error: "game_over" });
 
       const roomState = state[user.room];
       if (!roomState) return cb?.({ ok: false, error: "no roomState" });
@@ -118,7 +157,6 @@ module.exports = function registerGameSockets(io) {
       getRes = Number(getRes);
       rate = Number(rate || 4);
 
-      // validieren
       if (
         ![1, 2, 3, 4, 5].includes(giveRes) ||
         ![1, 2, 3, 4, 5].includes(getRes) ||
@@ -128,75 +166,55 @@ module.exports = function registerGameSockets(io) {
       }
 
       const beforeGive = roomState[playerNum][giveRes];
-      const beforeGet = roomState[playerNum][getRes];
-
       if (beforeGive < rate) {
-        console.log("[trade] BLOCKED not enough", {
-          user: user.username,
-          playerNum,
-          giveRes,
-          getRes,
-          rate,
-          beforeGive,
-        });
-        socket.emit(
-          "message",
-          formatMessage(botName, `Not enough resources for ${rate}:1 trade.`)
-        );
-        return cb?.({ ok: false, error: "not enough", beforeGive, beforeGet });
+        emitTech(IO, user.room, "Not enough resources for trade.");
+        return cb?.({ ok: false, error: "not enough" });
       }
 
       roomState[playerNum][giveRes] -= rate;
       roomState[playerNum][getRes] += 1;
 
-      console.log("[trade] OK", {
-        user: user.username,
-        room: user.room,
-        playerNum,
-        giveRes,
-        getRes,
-        rate,
-        before: { give: beforeGive, get: beforeGet },
-        after: {
-          give: roomState[playerNum][giveRes],
-          get: roomState[playerNum][getRes],
-        },
-      });
-
-      // sofort neuen state pushen
       emitGameState(io, user.room, roomState);
-
       cb?.({ ok: true });
     });
-socket.on("skipTurn", () => {
-  const user = getCurrentUser(socket.id);
-  if (!user) return;
 
-  const room = user.room;
-  const roomState = state[room];
-  if (!roomState) return;
-  const mySlot = keyByVal(roomState, user.playerId);  
-  if (!mySlot) return;
+    // ✅ SKIP
+    socket.on("skipTurn", () => {
+      const user = getCurrentUser(socket.id);
+      if (!user) return;
 
-  // ✅ nur aktiver Spieler darf skippen
-  if (Number(mySlot) !== Number(roomState.activePlayerNumber)) {
-    socket.emit("userError", { text: "Not your turn." }); // optional
-    return;
-  }
-  advanceTurn(roomState, room);            // Turn wechseln
-  // ✅ Wenn wir im normalen Spiel sind: sofort würfeln für den neuen aktiven Spieler
-  if (roomState.phase === "main") {
-    neuerWurf(roomState, map, room);
-  }
+      const room = user.room;
+      const roomState = state[room];
+      if (!roomState) return;
 
-  emitGameState(io, room, roomState); // sofort aktualisieren
-  emitTech(io, room, `SKIP: ${user.username} skipped the turn.`);
+      if (roomState.gameOver) {
+        emitTechToSocket(socket, "ERROR: Game is over.");
+        return;
+      }
 
-});
+      const mySlot = keyByVal(roomState, user.playerId);
+      if (!mySlot) return;
 
+      if (Number(mySlot) !== Number(roomState.activePlayerNumber)) {
+        emitTechToSocket(socket, "ERROR: Not your turn.");
+        return;
+      }
+
+      advanceTurn(roomState, room);
+
+      if (roomState.phase === "main") {
+        neuerWurf(roomState, map, room);
+      }
+
+      emitGameState(io, room, roomState);
+      emitTech(io, room, `SKIP: ${user.username} skipped the turn.`);
+    });
+
+    // 4:1 Trade (simple)
     socket.on("trade4to1", ({ fromRes, toRes }, cb) => {
       const user = getCurrentUser(socket.id);
       if (!user) return cb?.({ ok: false, error: "no user" });
+      if (state[user.room]?.gameOver) return cb?.({ ok: false, error: "game_over" });
 
       const roomState = state[user.room];
       if (!roomState) return cb?.({ ok: false, error: "no roomState" });
@@ -215,292 +233,243 @@ socket.on("skipTurn", () => {
         return cb?.({ ok: false, error: "bad params", fromRes, toRes });
       }
 
-      const before = {
-        from: roomState[playerNum][fromRes],
-        to: roomState[playerNum][toRes],
-      };
-
-      if (before.from < 4) {
-        console.log("[trade] BLOCKED not enough", {
-          user: user.username,
-          room: user.room,
-          playerNum,
-          fromRes,
-          toRes,
-          before,
-        });
-        emitTech(IO, room, "Not enough resources for 4:1 trade.");
-        return cb?.({ ok: false, error: "not enough", before });
+      if (roomState[playerNum][fromRes] < 4) {
+        emitTech(IO, user.room, "Not enough resources for 4:1 trade.");
+        return cb?.({ ok: false, error: "not enough" });
       }
 
       roomState[playerNum][fromRes] -= 4;
       roomState[playerNum][toRes] += 1;
 
-      const after = {
-        from: roomState[playerNum][fromRes],
-        to: roomState[playerNum][toRes],
-      };
-
-      console.log("[trade] OK", {
-        user: user.username,
-        room: user.room,
-        playerNum,
-        fromRes,
-        toRes,
-        before,
-        after,
-      });
-
-      // sofort pushen
       emitGameState(io, user.room, roomState);
-
-      cb?.({ ok: true, before, after, playerNum, fromRes, toRes });
+      cb?.({ ok: true });
     });
 
-    // -------- CHAT (global) --------
+    // -------- CHAT --------
     socket.on("chatMessage", (msg) => {
       const user = getCurrentUser(socket.id);
-      console.log("[chatMessage] socket", socket.id, "rooms:", Array.from(socket.rooms));
-      console.log("[chatMessage] known users socketIds:", Array.from(usersByPlayerId.values()).map(u => ({playerId:u.playerId, socketId:u.socketId, room:u.room, online:u.isOnline})));
-
       if (!user) return;
-      io.to(user.room).emit("message", formatMessage(user.username, msg));
+      if (state[user.room]?.gameOver) return;
 
+      io.to(user.room).emit("message", formatMessage(user.username, msg));
     });
 
-    // -------- HOUSE (global) --------
-  socket.on("house", (id) => {
-  const user = getCurrentUser(socket.id);
-  console.log("[house] socket", socket.id, "rooms:", Array.from(socket.rooms));
-  console.log("[house] known users socketIds:", Array.from(usersByPlayerId.values()).map(u => ({playerId:u.playerId, socketId:u.socketId, room:u.room, online:u.isOnline})));
+    // -------- HOUSE --------
+    socket.on("house", (id) => {
+      const user = getCurrentUser(socket.id);
+      if (!user) {
+        emitTechToSocket(socket, "ERROR: Not logged in.");
+        return;
+      }
+      if (state[user.room]?.gameOver) {
+        emitTechToSocket(socket, "ERROR: Game is over.");
+        return;
+      }
 
-  if (!user) {
-    console.log("[house] ignored: no user");
-    socket.emit("userError", { text: "Not logged in / no user session." });
-    return;
-  }
+      const res = buildHouse(id, state, user);
+      if (res && res.ok === false) {
+        emitTechToSocket(socket, `ERROR: ${res.message}`);
+      }
+    });
 
-  const res = buildHouse(id, state, user);
+    // ---------------- ENTER ----------------
+    socket.on("enter", (payload, cb) => {
+      const { intent, requestedRoom, playerId } = payload;
 
-  if (res && res.ok === false) {
-    socket.emit("userError", { text: res.message });
-  }
-});
+      // ✅ immediate reject if game over
+      if (requestedRoom && state[requestedRoom]?.gameOver) {
+        cb?.({
+          action: "reject",
+          reason: "game_over",
+          payload: state[requestedRoom].gameOverPayload || null,
+          session: "clear",
+        });
+        return;
+      }
 
-// Einstiegspunkt
+      const existingUser = usersByPlayerId.get(playerId);
 
-socket.on("enter", (payload, cb) => {
-  const {
-    intent,          // "join" | "create"
-    requestedRoom,
-    username,
-    quantity,
-    landscape,
-    playerId
-  } = payload;
+      if (existingUser) {
+        const room = existingUser.room;
 
-  // 1) playerId existiert?
-  const existingUser = usersByPlayerId.get(playerId);
+        if (!state[room]) {
+          cb({ action: "reject", reason: "game_over", session: "clear" });
+          return;
+        }
 
-  // 2) User existiert schon
-  if (existingUser) {
-    const room = existingUser.room;
+        // ✅ if room is already gameOver -> reject hard
+        if (state[room].gameOver) {
+          cb({
+            action: "reject",
+            reason: "game_over",
+            payload: state[room].gameOverPayload || null,
+            session: "clear",
+          });
+          return;
+        }
 
-    // Spiel existiert nicht mehr
-    if (!state[room]) {
-      cb({ action: "reject", reason: "game_over", session: "clear" });
-      return;
-    }
+        if (!existingUser.abandoned) {
+          cb({ action: "rejoin", room, session: "keep" });
+          return;
+        }
 
-    // Spieler gehört zu diesem Room → Rejoin
-    if (!existingUser.abandoned) {
-      cb({ action: "rejoin", room, session: "keep" });
-      return;
-    }
+        cb({ action: "reject", reason: "abandoned", session: "clear" });
+        return;
+      }
 
-    // abandoned → Session ungültig
-    cb({ action: "reject", reason: "abandoned", session: "clear" });
-    return;
-  }
+      if (intent === "create") {
+        cb({ action: "create", room: requestedRoom, session: "keep" });
+        return;
+      }
 
-  // 3) Neuer Spieler
-  if (intent === "create") {
-    cb({ action: "create", room: requestedRoom, session: "keep" });
-    return;
-  }
-
-  if (intent === "join") {
-    if (!state[requestedRoom]) {
-      cb({ action: "reject", reason: "no_room", session: "keep" });
-      return;
-    }
-    if (state[requestedRoom].playerCount >= state[requestedRoom].quantity) {
-      cb({ action: "reject", reason: "room_full", session: "keep" });
-      return;
-    }
-    cb({ action: "join", room: requestedRoom, session: "keep" });
-    return;
-  }
-});
-
+      if (intent === "join") {
+        if (!state[requestedRoom]) {
+          cb({ action: "reject", reason: "no_room", session: "keep" });
+          return;
+        }
+        if (state[requestedRoom].gameOver) {
+          cb({
+            action: "reject",
+            reason: "game_over",
+            payload: state[requestedRoom].gameOverPayload || null,
+            session: "clear",
+          });
+          return;
+        }
+        if (state[requestedRoom].playerCount >= state[requestedRoom].quantity) {
+          cb({ action: "reject", reason: "room_full", session: "keep" });
+          return;
+        }
+        cb({ action: "join", room: requestedRoom, session: "keep" });
+        return;
+      }
+    });
 
     // -------- CREATE ROOM --------
     socket.on("createRoom", ({ playerId, username, room, quantity, landscape }) => {
       username = sanitizeUsername(username);
       quantity = clampInt(quantity, 2, MAX_PLAYERS);
 
-      console.log("[createRoom]", { username, room, quantity, landscape });
-
-      
       const res = userJoin(playerId, socket.id, username, room);
-      //anmerkung: user.id ist die socket.id während playerId generiert ist für die session, room ist der room name und kein zeiger. 
-      // n ist die laufende nummer im state, wird nicht im user gespeichert. 
-      if(res.ok === true){
-
-        socket.join(room);
-        console.log("[rooms]", socket.id, Array.from(socket.rooms));
-        if(res.kind == "new"){
-
-          let user = res.user
-          state = createState(user, state, room, Number(quantity));
-          map = createMap(map, room, landscape);
-    
-          socket.emit("back", "start creating room");
-          socket.emit(
-            "message",
-            formatMessage(botName, "Welcome to Sailors & Islands, Creator!")
-          );
-    
-          // ✅ wichtig: Creator bekommt die Map direkt
-          socket.emit("init", map[room]);
-           io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
-
-          io.to(room).emit(
-            "message",
-            formatMessage(botName, `${username} created room "${room}"`)
-          );
-    
-          io.to(room).emit("roomUsers", {
-            room,
-            users: getRoomUsers(room),
-          });
-    
-          emitRooms(io);
-        }
+      if (!res.ok) {
+        emitTechToSocket(socket, "ERROR: Already connected in another tab.");
+        return;
       }
-      else
-      {
-        socket.emit("userError", { text: "Already connected in another tab." })
+
+      socket.join(room);
+
+      if (res.kind === "new") {
+        const user = res.user;
+
+        state = createState(user, state, room, Number(quantity));
+        map = createMap(map, room, landscape);
+
+        socket.emit("message", formatMessage(botName, "Welcome to Sailors & Islands, Creator!"));
+        socket.emit("init", map[room]);
+
+        io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
+
+        io.to(room).emit("message", formatMessage(botName, `${username} created room "${room}"`));
+
+        emitRooms(io);
       }
     });
 
     // -------- JOIN ROOM --------
-// joinRoom handler (game.socket.js) – minimal pattern with userJoin {ok, kind, user}
+    socket.on("joinRoom", ({ playerId, username, room }, cb) => {
+      username = sanitizeUsername(username);
 
-socket.on("joinRoom", ({ playerId, username, room }, cb) => {
-  username = sanitizeUsername(username);
+      if (!state[room]) {
+        cb?.({ ok: false, error: "no_room" });
+        return;
+      }
 
-  if (!state[room]) {
-    cb?.({ ok:false, error:"no_room" });
-    return;
-  }
+      // ✅ immediate reject if gameOver
+      if (state[room].gameOver) {
+        cb?.({ ok: false, error: "game_over", payload: state[room].gameOverPayload || null });
+        socket.emit("leave");
+        return;
+      }
 
-  // ✅ 1) ZUERST userJoin
-  const res = userJoin(playerId, socket.id, username, room);
+      const res = userJoin(playerId, socket.id, username, room);
+      if (!res.ok) {
+        cb?.({ ok: false, error: res.reason || "conflict" });
+        return;
+      }
 
-  if (!res.ok) {
-    cb?.({ ok:false, error: res.reason || "conflict" });
-    return;
-  }
+      const user = res.user;
 
-  const user = res.user;
+      // reconnect always allowed (but still block if gameOver handled above)
+      if (res.kind === "reconnect") {
+        socket.join(room);
+        socket.emit("init", map[room]);
+        socket.emit("gameState", JSON.stringify(state[room]));
+        io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
+        cb?.({ ok: true, kind: "reconnect" });
+        return;
+      }
 
-  // ✅ 2) reconnect darf IMMER rein – auch bei full
-  if (res.kind === "reconnect") {
-    socket.join(room);
-    console.log("[rooms]", socket.id, Array.from(socket.rooms));
-    socket.emit("init", map[room]);
-    socket.emit("gameState", JSON.stringify(state[room]));
-     io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
-    cb?.({ ok:true, kind:"reconnect" });
-    return;
-  }
+      // new join capacity check
+      if (state[room].playerCount >= state[room].quantity) {
+        cb?.({ ok: false, error: "full" });
+        return;
+      }
 
-  // ✅ 3) nur NEW joins sind kapazitätsrelevant
-  if (state[room].playerCount >= state[room].quantity) {
-    cb?.({ ok:false, error:"full" });
-    return;
-  }
+      socket.join(room);
+      checkExtendState(user, state);
 
-  // kind === "new" -> extend + init wie gehabt
-  socket.join(room);
-  console.log("[rooms]", socket.id, Array.from(socket.rooms));
-  checkExtendState(user, state);
-  socket.emit("init", map[room]);
-   io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
-  if (teamComplete(state[room])) startGameInterval(io, room, map);
-  cb?.({ ok:true, kind:"new" });
-});
+      socket.emit("init", map[room]);
+      io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
 
+      if (teamComplete(state[room])) startGameInterval(io, room, map);
 
-    // -------- DISCONNECT --------
-socket.on("leaveRoom", () => {
-  const user = getCurrentUser(socket.id);
-  if (!user) return;
+      cb?.({ ok: true, kind: "new" });
+    });
 
-  const room = user.room;
+    // -------- HARD LEAVE (button) --------
+    socket.on("leaveRoom", () => {
+      const user = getCurrentUser(socket.id);
+      if (!user) return;
 
-  markAbandoned(user);
-  socket.leave(room);
+      const room = user.room;
 
-  io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
+      markAbandoned(user);
+      socket.leave(room);
 
-  // ✅ NEW: wenn alle im Room abandoned -> room löschen
-  const roomUsers = getRoomUsers(room);
-  const allAbandoned = roomUsers.length > 0 && roomUsers.every(u => u.abandoned === true);
+      io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
 
-  if (allAbandoned) {
-    cleanupRoom(io, room);
-    return;
-  }
+      // ✅ if all abandoned -> delete
+      const roomUsers = getRoomUsers(room);
+      const allAbandoned = roomUsers.length > 0 && roomUsers.every((u) => u.abandoned === true);
+      if (allAbandoned) {
+        cleanupRoom(io, room);
+        return;
+      }
 
-  emitRooms(io);
-});
+      emitRooms(io);
+    });
 
-function cleanupRoom(io, room) {
-  if (roomIntervals[room]) {
-    clearInterval(roomIntervals[room]);
-    delete roomIntervals[room];
-  }
-  delete state[room];
-  delete map[room];
-  emitRooms(io);
-  console.log("[room] deleted", room);
-}
+    // -------- DISCONNECT (soft) --------
+    socket.on("disconnect", () => {
+      const user = getCurrentUser(socket.id);
+      if (!user) return;
 
-socket.on("disconnect", () => {
-  const user = getCurrentUser(socket.id);
-  if (!user) return;
+      const room = user.room;
 
-  const room = user.room;
+      if (state[room]?.gameOver) {
+        // nach gameOver ist soft disconnect faktisch "weg"
+        markAbandoned(user);
+      } else {
+        setOffline(user);
+      }
 
-  if (state[room]?.gameOver) {
-    markAbandoned(user); // game ist vorbei -> kein rejoin nötig
-  } else {
-    setOffline(user);    // game läuft -> rejoin möglich
-  }
+      io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
 
-  io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
-
-  if (state[room]?.gameOver && roomAllUsersOffline(room)) {
-    cleanupRoom(io, room);
-  }
-});
-
-
-
-
-
+      // ✅ cleanup if gameOver and everyone offline/abandoned
+      if (state[room]?.gameOver && roomAllUsersOffline(room)) {
+        cleanupRoom(io, room);
+      }
+    });
   });
 };
 
@@ -512,7 +481,6 @@ function startGameInterval(io, room, map) {
 
   if (!state[room]) return;
 
-  // ✅ do not start twice
   if (roomIntervals[room]) {
     console.log("[game] interval already running for", room);
     return;
@@ -524,7 +492,7 @@ function startGameInterval(io, room, map) {
 
   state[room].setupIndex = 0;
   state[room].setupBuiltThisTurn = false;
-  state[room].setupOrder = getSetupOrder(state[room].quantity); // e.g. [1,2,2,1]
+  state[room].setupOrder = getSetupOrder(state[room].quantity);
   state[room].activePlayerNumber = state[room].setupOrder[0];
 
   state[room].Wurf = "Start";
@@ -535,27 +503,21 @@ function startGameInterval(io, room, map) {
     try {
       if (!state[room]) return;
 
-      const result = gameLoop(room, state[room], map);
+      // ✅ if already ended, stop interval
+      if (state[room].gameOver) {
+        clearInterval(roomIntervals[room]);
+        delete roomIntervals[room];
+        return;
+      }
+
+      const result = gameLoop(io, room, state[room], map);
 
       if (!result || result.ended !== true) {
         emitGameState(io, room, state[room]);
         return;
       }
 
-      // --- GAME OVER ---
-      const payload = result.payload || {};
-      emitTech(io, room, "GAME OVER");
-
-      if (payload.draw) {
-        emitTech(io, room, `RESULT: DRAW (${payload.bestPoints ?? "?"} points)`);
-      } else {
-        const w = payload.winnerNumber;
-        const name = state[room]?.[w]?.username || `Player ${w ?? "?"}`;
-        emitTech(io, room, `WINNER: ${name} (${payload.bestPoints ?? "?"} points)`);
-      }
-
-      emitGameOver(io, room, payload);
-
+      // ✅ interval stop is enough; endGame already emitted
       clearInterval(roomIntervals[room]);
       delete roomIntervals[room];
     } catch (err) {
@@ -564,46 +526,32 @@ function startGameInterval(io, room, map) {
   }, 500);
 }
 
-
-function gameLoop(room, roomState, map) {
+function gameLoop(io, room, roomState, map) {
   if (!roomState) return { ended: false };
 
-  // ✅ NEW: end by rounds
+  // ✅ winner check ONCE
   if (watchForWinner(roomState)) {
-    return { ended: true, payload: computeGameOverPayload(roomState) };
+    const payload = computeGameOverPayload(roomState);
+    endGame(io, room, payload);
+    return { ended: true, payload };
   }
-
-  // keep old winner rule (points>=50) for now (doesn't hurt)
-function watchForWinner(roomState) {
-  for (let i = 1; i <= roomState.playerCount; i++) {
-    if (roomState[i]?.points >= WIN_POINTS) return true;
-  }
-  return false;
-}
-
 
   const now = timeGetter();
   roomState.timeDif = TURN_SECONDS - (now - roomState.turnTime);
 
-if (roomState.timeDif <= 0) {
-  advanceTurn(roomState, room);
+  if (roomState.timeDif <= 0) {
+    advanceTurn(roomState, room);
 
-  // ✅ nur im MAIN würfeln
-  if (roomState.phase === "main") {
-    // hier kannst du deine bestehende roundsLeft / neuerWurf Logik lassen
-    // oder nur "neuerWurf" callen wie bisher
-    neuerWurf(roomState, map, room);
+    if (roomState.phase === "main") {
+      neuerWurf(roomState, map, room);
+    }
   }
 
-  
-}
-
-return { ended: false };
- 
+  return { ended: false };
 }
 
 function roll2to12() {
-  return Math.floor(Math.random() * 11) + 2; // 2..12
+  return Math.floor(Math.random() * 11) + 2;
 }
 
 function neuerWurf(roomState, map, room) {
@@ -614,50 +562,48 @@ function neuerWurf(roomState, map, room) {
 
   let num = roll2to12();
 
+  // reduce 7
   if (num === 7) {
     const reroll = roll2to12();
-    num = (reroll === 7) ? 7 : reroll;
-
-    // optional tech info
-    // emitTech(io, room, reroll === 7 ? "7 confirmed (double roll)" : `7 rerolled to ${num}`);
+    num = reroll === 7 ? 7 : reroll;
   }
 
   roomState.Wurf = num;
   distributeResources(map[room], num, room);
 }
-// ================= HELPERS FOR SHIP =================
+
+// ================= BUILDING =================
+
 function enoughResourcesShip(state, user) {
   const n = keyByVal(state[user.room], user.playerId);
   return (
-    state[user.room][n][2] >= 5 &&  // wheat
+    state[user.room][n][2] >= 5 && // wheat
+    state[user.room][n][1] >= 5 && // ore
     state[user.room][n][3] >= 2 &&
     state[user.room][n][4] >= 1 &&
-    state[user.room][n][5] >= 2 &&
-    state[user.room][n][1] >= 5     // ore
+    state[user.room][n][5] >= 2
   );
 }
 
 function takeResourcesShip(state, user) {
   const n = keyByVal(state[user.room], user.playerId);
-  state[user.room][n][2] -= 5; // wheat
-  state[user.room][n][1] -= 5; // ore
+  state[user.room][n][2] -= 5;
+  state[user.room][n][1] -= 5;
   state[user.room][n][3] -= 2;
   state[user.room][n][4] -= 1;
   state[user.room][n][5] -= 2;
 }
 
-// ================= BUILD SHIP =================
-
 function buildShip(id, state, user) {
   const roomState = state[user.room];
   if (!roomState) return { ok: false, message: "Room state not found." };
   if (!gameActive) return { ok: false, message: "Game is not active yet." };
+  if (roomState.gameOver) return { ok: false, message: "Game is over." };
 
   if (!checkIfPlayerActive(state, user)) {
     return { ok: false, message: "Not your turn." };
   }
 
-  // ✅ SETUP: nur 1 Build pro Zug
   if (roomState.phase === "setup" && roomState.setupBuiltThisTurn) {
     return { ok: false, message: "Setup: only 1 build per turn." };
   }
@@ -665,18 +611,9 @@ function buildShip(id, state, user) {
   if (!checkBuildingPossible(id, state, user)) {
     return { ok: false, message: "You cannot build there (distance rule)." };
   }
-  const n = keyByVal(roomState, user.playerId);
-  console.log("[ship cost check]", {
-    player: user.username,
-    n,
-    wheat: roomState[n][2],
-    ore: roomState[n][1],
-    needWheat: 5,
-    needOre: 5,
-  });
 
   if (!enoughResourcesShip(state, user)) {
-    return { ok: false, message: "Not enough resources for a ship (3 Wheat, 5 Ore)." };
+    return { ok: false, message: "Not enough resources for a ship." };
   }
 
   if (!roomState.net?.[id] || roomState.net[id].value !== 0) {
@@ -690,27 +627,21 @@ function buildShip(id, state, user) {
 
   takeResourcesShip(state, user);
 
-  // ✅ SETUP: markieren, dass in diesem Zug gebaut wurde
-  if (roomState.phase === "setup") {
-    roomState.setupBuiltThisTurn = true;
-  }
+  if (roomState.phase === "setup") roomState.setupBuiltThisTurn = true;
 
   return { ok: true };
 }
 
-// ================= BUILD HOUSE =================
-
 function buildHouse(id, state, user) {
   const roomState = state[user.room];
   if (!roomState) return { ok: false, message: "Room state not found." };
-
   if (!gameActive) return { ok: false, message: "Game is not active yet." };
+  if (roomState.gameOver) return { ok: false, message: "Game is over." };
 
   if (!checkIfPlayerActive(state, user)) {
     return { ok: false, message: "Not your turn." };
   }
 
-  // ✅ SETUP: nur 1 Build pro Zug
   if (roomState.phase === "setup" && roomState.setupBuiltThisTurn) {
     return { ok: false, message: "Setup: only 1 build per turn." };
   }
@@ -720,31 +651,24 @@ function buildHouse(id, state, user) {
   }
 
   if (!enoughResourcesHouse(state, user)) {
-    return { ok: false, message: "Not enough resources to build a boat." };
+    return { ok: false, message: "Not enough resources to build a house." };
   }
 
-  if (!roomState.net?.[id]) {
-    return { ok: false, message: "Invalid build location." };
-  }
-
-  if (roomState.net[id].value !== 0) {
-    return { ok: false, message: "Cannot build there: already occupied." };
-  }
+  if (!roomState.net?.[id]) return { ok: false, message: "Invalid build location." };
+  if (roomState.net[id].value !== 0) return { ok: false, message: "Already occupied." };
 
   const number = keyByVal(roomState, user.playerId);
   roomState.net[id].playerNumber = Number(number);
   roomState.net[id].value = 1;
-  roomState[number].points++;
+  roomState[number].points += 1;
 
   takeResourcesHouse(state, user);
 
-  // ✅ SETUP: markieren, dass in diesem Zug gebaut wurde
-  if (roomState.phase === "setup") {
-    roomState.setupBuiltThisTurn = true;
-  }
+  if (roomState.phase === "setup") roomState.setupBuiltThisTurn = true;
 
   return { ok: true };
 }
+
 // ================= HELPERS =================
 
 function checkIfPlayerActive(state, user) {
@@ -761,11 +685,7 @@ function takeResourcesHouse(state, user) {
 
 function enoughResourcesHouse(state, user) {
   const n = keyByVal(state[user.room], user.playerId);
-  return (
-    state[user.room][n][3] >= 2 &&
-    state[user.room][n][4] >= 1 &&
-    state[user.room][n][5] >= 2
-  );
+  return state[user.room][n][3] >= 2 && state[user.room][n][4] >= 1 && state[user.room][n][5] >= 2;
 }
 
 function checkBuildingPossible(id, state, user) {
@@ -781,11 +701,15 @@ function checkBuildingPossible(id, state, user) {
 function createState(user, state, room, quantity) {
   state[room] = {
     Wurf: 0,
-    timeDif: TURN_SECONDS,  // ✅ was 30
+    timeDif: TURN_SECONDS,
     turnTime: 0,
     activePlayerNumber: 1,
     playerCount: 1,
     quantity,
+
+    phase: "lobby",
+    gameOver: false,
+    gameOverPayload: null,
 
     net: createNet(),
     1: {
@@ -812,11 +736,13 @@ function checkExtendState(user, state) {
   }
   return false;
 }
+
 function getSetupOrder(n) {
   const fwd = Array.from({ length: n }, (_, i) => i + 1);
   const bwd = Array.from({ length: n }, (_, i) => n - i);
   return fwd.concat(bwd);
 }
+
 function advanceTurn(roomState, room) {
   roomState.turnTime = timeGetter();
   roomState.timeDif = TURN_SECONDS;
@@ -827,26 +753,20 @@ function advanceTurn(roomState, room) {
 
     roomState.setupIndex += 1;
 
-    // Setup fertig?
     if (roomState.setupIndex >= roomState.setupOrder.length) {
       roomState.phase = "main";
       emitTech(IO, room, "MODE: MAIN");
-
       roomState.activePlayerNumber = 1;
       roomState.turnTime = timeGetter();
       roomState.timeDif = TURN_SECONDS;
       return;
     }
 
-    roomState.activePlayerNumber =
-      roomState.setupOrder[roomState.setupIndex];
-
+    roomState.activePlayerNumber = roomState.setupOrder[roomState.setupIndex];
     return;
   }
 
-  // normal game
-  roomState.activePlayerNumber =
-    (roomState.activePlayerNumber % roomState.quantity) + 1;
+  roomState.activePlayerNumber = (roomState.activePlayerNumber % roomState.quantity) + 1;
 }
 
 function extendState(user, state) {
@@ -857,14 +777,9 @@ function extendState(user, state) {
 
   state[room][n] = {
     username: sanitizeUsername(user.username),
-
-    // Identität (stabil für Rejoin)
     playerId: user.playerId,
-
-    // optional (nur Debug/Info; NICHT für Identität verwenden)
     socketId: user.socketId,
 
-    // Ressourcen (1..5) konsistent wie in createState
     1: 5,
     2: 5,
     3: 4,
@@ -876,25 +791,17 @@ function extendState(user, state) {
   };
 }
 
-
-function deletePlayerFromState(state, user) {
-  if (!state[user.room]) return;
-  const n = keyByVal(state[user.room], user.playerId);
-  if (n) delete state[user.room][n];
-}
-
 function teamComplete(roomState) {
   return roomState.playerCount === roomState.quantity;
 }
 
 function watchForWinner(roomState) {
   for (let i = 1; i <= roomState.playerCount; i++) {
-    if (roomState[i]?.points >= 50) return true;
+    if (roomState[i]?.points >= WIN_POINTS) return true;
   }
   return false;
 }
 
-// ✅ NEW: compute end-game winner/draw by points
 function computeGameOverPayload(roomState) {
   let best = -Infinity;
   let winners = [];
@@ -911,16 +818,6 @@ function computeGameOverPayload(roomState) {
       winners.push(i);
     }
   }
-function endGame(io, room, payload) {
-  if (!state[room]) return;
-
-  state[room].gameOver = true;
-  state[room].endedAt = Date.now();
-  state[room].gameOverPayload = payload;
-
-  io.to(room).emit("gameOver", JSON.stringify(payload));
-  emitRooms(io); // damit lobby joinable etc. korrekt ist
-}
 
   const draw = winners.length !== 1;
   const winnerNumber = draw ? null : winners[0];
@@ -929,11 +826,10 @@ function endGame(io, room, payload) {
     draw,
     winnerNumber,
     winners,
-    winnerNames: winners.map(n => roomState[n]?.username || `P${n}`),
+    winnerNames: winners.map((n) => roomState[n]?.username || `P${n}`),
     bestPoints: best,
   };
 }
-
 
 // ================= UTIL =================
 
@@ -956,7 +852,7 @@ function createNet() {
 function createMap(map, room, landscape) {
   map[room] = {};
   for (let i = 1; i < 144; i++) {
-    map[room][i] = algoNormal(); // landscape kann später rein
+    map[room][i] = algoNormal();
   }
   return map;
 }
@@ -968,14 +864,15 @@ function distributeResources(roomMap, num, room) {
       findPlacesAroundArea(index).forEach((p) => {
         const pn = state[room].net[p].playerNumber;
         if (pn > 0) {
-          state[room][pn][res] += state[room].net[p].value;
-          emitTech(IO, room, `HARVEST: ${state[room].net[p].value} + ${resName(res)} (roll ${num})`);
-
+          const gain = state[room].net[p].value;
+          state[room][pn][res] += gain;
+          emitTech(IO, room, `HARVEST: +${gain} ${resName(res)} (roll ${num})`);
         }
       });
     }
   });
 }
+
 function resName(res) {
   switch (Number(res)) {
     case 1: return "MUD";
@@ -995,11 +892,6 @@ function findAreas(roomMap, num) {
 
 function emitGameState(io, room, gameState) {
   io.to(room).emit("gameState", JSON.stringify(gameState));
-}
-
-// ✅ changed: allow object payload (not just {winner})
-function emitGameOver(io, room, payload) {
-  io.to(room).emit("gameOver", JSON.stringify(payload));
 }
 
 function algoNormal() {

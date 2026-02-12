@@ -33,7 +33,7 @@ window.socket = socket;
 socket.on("init", handleInit);
 socket.on("gameState", handleGameState);
 
-socket.on("gameOver", handleGameOver);
+
 
 socket.on("message", (message) => {
   console.log("[client] got message", message);
@@ -95,6 +95,20 @@ function runEnterFlow() {
     }
   );
 }
+socket.on("gameOver", (raw) => {
+  let p = {};
+  try { p = JSON.parse(raw); } catch {}
+
+  const winner = p.draw ? "DRAW" : (p.winnerNames?.[0] || `Player ${p.winnerNumber}`);
+  const best = p.bestPoints ?? "?";
+
+  alert(`GAME OVER\nWinner: ${winner}\nBest points: ${best}`);
+
+  socket.emit("leaveRoom");              // ✅ hard leave
+  sessionStorage.removeItem("playerId"); // ✅ kein rejoin
+  window.location = "../index.html";
+});
+
 
 // ✅ WICHTIG: bei JEDEM connect enter erneut starten
 socket.on("connect", () => {
