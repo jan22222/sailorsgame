@@ -426,7 +426,62 @@ module.exports = function registerGameSockets(io) {
 
       cb?.({ ok: true, kind: "new" });
     });
+socket.on("buyPoints", (cb) => {
+  const user = getCurrentUser(socket.id);
+  if (!user) return cb?.({ ok: false, error: "no_user" });
 
+  const room = user.room;
+  const roomState = state[room];
+  if (!roomState) return cb?.({ ok: false, error: "no_roomState" });
+
+  const mySlot = keyByVal(roomState, user.playerId);
+  if (!mySlot) return cb?.({ ok: false, error: "no_playerNum" });
+
+  // ✅ nur aktiver Spieler
+  if (Number(mySlot) !== Number(roomState.activePlayerNumber)) {
+    emitTechToSocket(socket, "Not your turn.");
+    return cb?.({ ok: false, error: "not_your_turn" });
+  }
+
+  // optional: im Setup erlauben oder nicht (ich würde erlauben, aber du kannst blocken)
+  // if (roomState.phase === "setup") {
+  //   emitTechToSocket(socket, "Not available during SETUP.");
+  //   return cb?.({ ok: false, error: "setup_blocked" });
+  // }
+
+  // Ressourcen-IDs bei dir: 1..5
+  // (du nutzt resName: 1=MUD, 2=WHEAT, 3=SHEEP, 4=WOOD, 5=ORE)
+  const need = 3;
+  const hasAll =
+    roomState[mySlot][1] >= need &&
+    roomState[mySlot][2] >= need &&
+    roomState[mySlot][3] >= need &&
+    roomState[mySlot][4] >= need &&
+    roomState[mySlot][5] >= need;
+
+  if (!hasAll) {
+    emitTechToSocket(socket, "Not enough resources: need 3 of EACH resource for +3 points.");
+    return cb?.({ ok: false, error: "not_enough_resources" });
+  }
+
+  // ✅ zahlen
+  roomState[mySlot][1] -= need;
+  roomState[mySlot][2] -= need;
+  roomState[mySlot][3] -= need;
+  roomState[mySlot][4] -= need;
+  roomState[mySlot][5] -= need;
+
+  // ✅ Punkte geben
+  roomState[mySlot].points += 3;
+
+  // ✅ Feedback nur an den Spieler
+  emitTechToSocket(socket, `CONVERT: Paid 3 of each resource → +3 points (Total: ${roomState[mySlot].points})`);
+
+  // state pushen
+  emitGameState(io, room, roomState);
+
+  cb?.({ ok: true, points: roomState[mySlot].points });
+});
     // -------- HARD LEAVE (button) --------
     socket.on("leaveRoom", () => {
       const user = getCurrentUser(socket.id);
@@ -1043,3 +1098,4 @@ function roomAllGone(room) {
   // ✅ "egal welcher leave": abandoned ODER offline zählt als weg
   return roomUsers.every(u => u && (u.abandoned === true || u.isOnline === false));
 }
+

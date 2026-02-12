@@ -221,8 +221,10 @@
     </div>
 
     <div class="res-container-box" style="border: 2px solid white; padding: 8px; border-radius: 12px;">
-        <h2 v-if="roundsLeft > 15" style="color: #ffeb3b; font-size: 14px; text-align: center; margin-bottom: 5px;">AUFBAU</h2>
+        <h2 v-if="roundsLeft > 15" style="color: #ffeb3b; font-size: 14px; text-align: center; margin-bottom: 5px;"></h2>
         <counter texto="Wurf" :coun="Wurf === 0 ? '...' : Wurf" fill="#fff" text-color="#111"></counter>
+        <button @click="buyPoints">+3 Points (pay 3 of each)</button>
+
     </div>
 </div>
 
@@ -286,7 +288,7 @@
                 box.removeChild(box.firstChild);
             }
         }
-
+        
         function qsParam(name) { return new URLSearchParams(window.location.search).get(name); }
 
         var app = new Vue({
@@ -303,6 +305,9 @@
                 }
             },
             methods: {
+                buyPoints: function () {
+                   if (window.socket) window.socket.emit("buyPoints");
+                },
                 skipTurn: function () {
                     if (window.socket) {
                         window.socket.emit("skipTurn");
