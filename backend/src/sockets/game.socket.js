@@ -982,11 +982,24 @@ function distributeResources(roomMap, num, room) {
         if (pn > 0) {
           const gain = state[room].net[p].value;
           state[room][pn][res] += gain;
-          emitTech(IO, room, `HARVEST: +${gain} ${resName(res)} (roll ${num})`);
+          emitTechToPlayer(IO, state[room], pn,
+            `HARVEST: +${state[room].net[p].value} ${resName(res)} (roll ${num})`
+          );
+
+
         }
       });
     }
   });
+}
+function emitTechToPlayer(io, roomState, pn, msg) {
+  const playerId = roomState?.[pn]?.playerId;
+  if (!playerId) return;
+
+  const u = usersByPlayerId.get(playerId);
+  if (!u?.socketId) return; // offline -> kein tech spam
+
+  io.to(u.socketId).emit("tech", msg);
 }
 
 function resName(res) {
