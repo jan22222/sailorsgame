@@ -1,192 +1,99 @@
 // public/js/board.js
-// Board rendering + click selection + building draw helpers
+// Tiles unverändert, Vertices zick-zack für Flat-Top Hexes
+let vertexPoints = [];
+let selectedVertex = null;
 
-let vertexPoints = [];     // früher: Netz
-let tiles = [];            // früher: asteroids
-let selectedVertex = null; // früher: aktpunkt
-
-let canvas, ctx;              // base (map)
-let overlayCanvas, overlayCtx; // overlay (punkte + selection)
-
+let canvas, ctx;
+let overlayCanvas, overlayCtx;
 
 const CANVAS_W = 1250;
 const CANVAS_H = 1250;
+const HEX_RADIUS = 50;
 
-// Map: placeId (1..240) -> vertexPoints index (1-based) mapping
-// Dein altes trans[] war blockweise: Block 1 (1..20) nur Paare,
-// ab Block 2: (20k+1) fix, (20k) fix, dazwischen Paare.
-const placeToVertexIndex = buildPlaceToVertexIndexMap();
+// Tile Grid
+const TILE_COLS = 13;
+const TILE_ROWS = 11;
 
-// Reverse: vertexIndex (1..N) -> placeId (1..240)
-const vertexIndexToPlaceId = buildVertexIndexToPlaceId(placeToVertexIndex);
+// Vertex Grid
+const VERTEX_COLS = 12;  // ähnlich wie vorher
+const VERTEX_ROWS = 20;  // pro Spalte
+const HORIZ_SPACING = 44; // grob an Hex-Abstand
+const VERT_SPACING = 50;  // grob an Hex-Abstand
 
-function buildPlaceToVertexIndexMap() {
-  const map = new Array(241);
-
-  for (let block = 0; block < 12; block++) {
-    const start = block * 20 + 1; // 1,21,41,...,221
-    const end = start + 19;       // 20,40,...,240
-
-    if (block === 0) {
-      // 1..20: (1<->2), (3<->4) ... (19<->20)
-      for (let id = start; id <= end; id += 2) {
-        map[id] = id + 1;
-        map[id + 1] = id;
-      }
-    } else {
-      // 21..40, 41..60, ...:
-      // start (z.B. 21) bleibt, end (z.B. 40) bleibt
-      map[start] = start;
-      map[end] = end;
-
-      for (let id = start + 1; id < end; id += 2) {
-        map[id] = id + 1;
-        map[id + 1] = id;
-      }
-    }
-  }
-
-  return map;
-}
-
-function buildVertexIndexToPlaceId(placeToIdx) {
-  const rev = {};
-  for (let placeId = 1; placeId <= 240; placeId++) {
-    const idx = placeToIdx[placeId];
-    rev[idx] = placeId;
-  }
-  return rev;
-}
 
 class Point {
-  constructor(x, y) {
+  constructor(x, y, placeId) {
     this.x = x;
     this.y = y;
+    this.placeId = placeId;
   }
 }
 
-class Tile {
-  constructor(x, y, tileNo, diceNumber, fillColor) {
-    this.visible = true;
-    this.x = x;
-    this.y = y;
-    this.radius = 50;
-    this.angle = 0;
-    this.tileNo = tileNo;       // früher: no
-    this.diceNumber = diceNumber; // früher: zahl
-    this.fillColor = fillColor;
+// ===================== VERTICES FÜR HEX-COLLISION =====================
+function generateVerticesForHexMap() {
+  vertexPoints = [];
+  let placeId = 1;
 
-    this.draw();
-    tiles.push(this);
-  }
+  // Hex-Abstände (wie in deinem Code)
+  const HEX_RADIUS = 50;
+  const HORIZ_SPACING = 88; // horizontaler Abstand der Hex-Mitten
+  const VERT_SPACING = 100; // vertikaler Abstand der Hex-Mitten
 
-  draw() {
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = "grey";
-    ctx.fillStyle = this.fillColor;
+  // Versatz für pointy-top Hexes (rechts/links)
+  const X_OFFSET = HEX_RADIUS;
+  const Y_OFFSET = HEX_RADIUS;
 
-    ctx.beginPath();
-    const vertAngle = (Math.PI * 2) / 6;
-    const radians = (this.angle / Math.PI) * 180;
+  // Gesamt Hex Grid
+  const TILE_COLS = 13;
+  const TILE_ROWS = 11;
 
-    for (let i = 0; i < 6; i++) {
-      ctx.lineTo(
-        this.x - this.radius * Math.cos(vertAngle * i + radians),
-        this.y - this.radius * Math.sin(vertAngle * i + radians)
-      );
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+  // ---------------- SPALTENWEISE ----------------
+  for (let col = 0; col < TILE_COLS - 1; col++) {
+    const colEven = col % 2 === 0;
 
-    // Zahlenlabel
-    ctx.fillStyle = "#000033";
-    ctx.font = "italic bold 32px sans-serif";
-    let txt = String(this.diceNumber);
-    if (txt.length !== 2) txt = " " + txt;
-    ctx.fillText(txt, this.x - 20, this.y + 10);
+    // Obere Reihe von Vertex zwischen Spalte col und col+1
+    for (let row = 0; row < TILE_ROWS - 1; row++) {
+      // linke Hex-Spalte
+      const leftHexX = col * HORIZ_SPACING+HORIZ_SPACING;
+      const leftHexY = row * VERT_SPACING + (colEven ? 0 : VERT_SPACING / 2)+VERT_SPACING;
+      const rightHexX = (col + 1) * HORIZ_SPACING+HORIZ_SPACING;
+      const rightHexY = row * VERT_SPACING + ((col + 1) % 2 === 0 ? 0 : VERT_SPACING / 2)+VERT_SPACING;
 
-    // --- Vertex points einsammeln (deine alte Logik beibehalten) ---
-    // Diese Sonderfälle verhindern doppelte Punkte an Rändern.
-    if (this.tileNo > 11) {
-      if (
-        this.tileNo !== 12 &&
-        this.tileNo !== 34 &&
-        this.tileNo !== 56 &&
-        this.tileNo !== 78 &&
-        this.tileNo !== 100 &&
-        this.tileNo !== 122 &&
-        this.tileNo !== 144
-      ) {
-        if (
-          this.tileNo !== 33 &&
-          this.tileNo !== 55 &&
-          this.tileNo !== 77 &&
-          this.tileNo !== 99 &&
-          this.tileNo !== 121 &&
-          this.tileNo !== 143
-        ) {
-          // Vertex 0
-          vertexPoints.push(
-            new Point(
-              this.x - 9 - this.radius * Math.cos(vertAngle * 0 + radians),
-              this.y - this.radius * Math.sin(vertAngle * 0 + radians)
-            )
-          );
-        }
+      if(!colEven){
+        
+        // Vertex auf der unteren Seite der oberen Hex-Reihe
+        const vx2 = rightHexX - HEX_RADIUS ;
+        const vy2 = rightHexY + HEX_RADIUS ;
 
-        if (
-          this.tileNo !== 23 &&
-          this.tileNo !== 45 &&
-          this.tileNo !== 67 &&
-          this.tileNo !== 89 &&
-          this.tileNo !== 111 &&
-          this.tileNo !== 133
-        ) {
-          // Vertex 1
-          vertexPoints.push(
-            new Point(
-              this.x - 5 - this.radius * Math.cos(vertAngle * 1 + radians),
-              -8 + this.y - this.radius * Math.sin(vertAngle * 1 + radians)
-            )
-          );
-        }
+        vertexPoints.push(new Point(vx2, vy2, placeId));
+        placeId++;
+          // Vertex zwischen 3 Hexen: leicht nach rechts/links über die Spitze hinaus
+        const vx = leftHexX + HEX_RADIUS ; // +2 für Versatz
+        const vy = leftHexY + HEX_RADIUS ;
+        vertexPoints.push(new Point(vx, vy, placeId));
+        placeId++;
+
+      }else{
+        // Vertex zwischen 3 Hexen: leicht nach rechts/links über die Spitze hinaus
+        const vx = leftHexX + HEX_RADIUS ; // +2 für Versatz
+        const vy = leftHexY + HEX_RADIUS ;
+        vertexPoints.push(new Point(vx, vy, placeId));
+        placeId++;
+
+        // Vertex auf der unteren Seite der oberen Hex-Reihe
+        const vx2 = rightHexX - HEX_RADIUS ;
+        const vy2 = rightHexY + HEX_RADIUS;
+
+        vertexPoints.push(new Point(vx2, vy2, placeId));
+        placeId++;
+
       }
     }
   }
+
+  console.log("Vertex erzeugt:", vertexPoints.length);
 }
-
-// Debug helper (optional)
-function drawVertexDebug(points, highlightPoint) {
-  // Normale Punkte: gefüllte Kreise
-  for (const p of points) {
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); // <- Größe der Punkte
-    ctx.fillStyle = "#9aa0a6";            // grau
-    ctx.fill();
-    ctx.closePath();
-  }
-
-  // Highlight: Ring/Rahmen (nicht füllen)
-  if (highlightPoint) {
-    ctx.beginPath();
-    ctx.arc(highlightPoint.x, highlightPoint.y, 14, 0, Math.PI * 2); // <- Ringgröße
-    ctx.strokeStyle = "#ff3b30";  // rot
-    ctx.lineWidth = 4;
-    ctx.stroke();
-    ctx.closePath();
-  }
-}
-
-function placeIdFromSelectedVertex() {
-  if (!selectedVertex) return null;
-  const idx0 = vertexPoints.findIndex((p) => p === selectedVertex);
-  const vertexIndex1Based = idx0 + 1;
-  return vertexIndexToPlaceId[vertexIndex1Based] || null;
-}
-
-// ===== Public API (wird vom restlichen Frontend genutzt) =====
-
+// ===================== SETUP =====================
 function setupCanvas(map) {
   canvas = document.getElementById("my-canvas");
   overlayCanvas = document.getElementById("overlay-canvas");
@@ -199,45 +106,58 @@ function setupCanvas(map) {
   ctx = canvas.getContext("2d");
   overlayCtx = overlayCanvas.getContext("2d");
 
-  // reset
   vertexPoints = [];
-  tiles = [];
   selectedVertex = null;
 
-  // Tiles zeichnen (auf BASE)
-  let tileId = 1;
-  for (let col = 1; col < 14; col++) {
-    for (let row = 1; row < 12; row++) {
-      const res = map[tileId].res;
-      const num = map[tileId].num;
-      const color = resourceToColor(res);
-      new Tile(col * 88, row * 100 + (col % 2) * 50, tileId, num, color);
-      tileId++;
-    }
-  }
+  drawHexMap(map);    
+  generateVerticesForHexMap()
 
-  // Overlay initial zeichnen (graue Punkte direkt sichtbar)
   redrawOverlay();
-
-  // Klick auf OVERLAY (nicht base)
   overlayCanvas.addEventListener("click", onCanvasClick);
 }
 
+// ===================== HEX MAP =====================
+function drawHexMap(map) {
+  let tileId = 1;
+  for (let col = 1; col <= TILE_COLS; col++) {
+    for (let row = 1; row <= TILE_ROWS; row++) {
+      const x = col * 88;
+      const y = row * 100 + (col % 2) * 50;
 
-function resourceToColor(res) {
-  switch (res) {
-    case 1: return "#9c7e00";   // mud/lehm
-    case 2: return "#dbdb00";   // grains/weizen
-    case 3: return "#a5d02a";   // sheep
-    case 4: return "darkgreen"; // wood
-    case 5: return "#838383";   // metals/erz
-    case 6: return "#9fd7ff"; // water
-    case 7: return "#ecece6";   // desert
-    default: return "#444";
+      drawHex(x, y, map[tileId]);
+      tileId++;
+    }
+  }
+}
+
+function drawHex(cx, cy, tile) {
+  const angle = Math.PI / 3;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const px = cx + HEX_RADIUS * Math.cos(angle * i);
+    const py = cy + HEX_RADIUS * Math.sin(angle * i);
+    ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+
+  ctx.fillStyle = resourceToColor(tile.res);
+  ctx.fill();
+  ctx.strokeStyle = "grey";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = "#000";
+  ctx.font = "bold 20px sans-serif";
+  if(tile.num < 10){
+    ctx.fillText(tile.num, cx - 7, cy + 7);
+  }
+  else{
+    ctx.fillText(tile.num, cx - 12, cy + 7);
   }
 }
 
 
+// ===================== CLICK =====================
 function onCanvasClick(event) {
   const rect = overlayCanvas.getBoundingClientRect();
   const scaleX = overlayCanvas.width / rect.width;
@@ -247,48 +167,11 @@ function onCanvasClick(event) {
   const y = (event.clientY - rect.top) * scaleY;
 
   selectedVertex = findNearestVertex(x, y, 30);
-
   redrawOverlay();
 
-  const placeId = placeIdFromSelectedVertex();
-  console.log("CLICK", "x=", Math.round(x), "y=", Math.round(y), "placeId=", placeId);
+  console.log("CLICK placeId =", getSelectedPlaceId());
 }
 
-function drawVertexOverlay(points, highlightPoint) {
-  // overlay komplett löschen
-  overlayCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-
-  // graue Punkte (größer und sichtbar)
-  overlayCtx.fillStyle = "rgba(180,180,180,0.9)";
-  for (const p of points) {
-    overlayCtx.beginPath();
-    overlayCtx.arc(p.x, p.y, 6, 0, Math.PI * 2); // punktgröße
-    overlayCtx.fill();
-  }
-
-  // Highlight: Ring + Rahmen
-  if (highlightPoint) {
-    // Außenring
-    overlayCtx.strokeStyle = "red";
-    overlayCtx.lineWidth = 4;
-    overlayCtx.beginPath();
-    overlayCtx.arc(highlightPoint.x, highlightPoint.y, 18, 0, Math.PI * 2);
-    overlayCtx.stroke();
-
-    // optional: innerer Ring
-    overlayCtx.strokeStyle = "rgba(255,255,255,0.8)";
-    overlayCtx.lineWidth = 2;
-    overlayCtx.beginPath();
-    overlayCtx.arc(highlightPoint.x, highlightPoint.y, 12, 0, Math.PI * 2);
-    overlayCtx.stroke();
-  }
-}
-
-function redrawOverlay() {
-  drawVertexOverlay(vertexPoints, selectedVertex);
-}
-
-// “nächster Punkt” statt abs(x/y) – stabiler
 function findNearestVertex(x, y, maxDist) {
   let best = null;
   let bestD2 = maxDist * maxDist;
@@ -305,47 +188,54 @@ function findNearestVertex(x, y, maxDist) {
   return best;
 }
 
-// Wird vom UI-Button genutzt: sendet placeId zurück (oder null)
 function getSelectedPlaceId() {
-  return placeIdFromSelectedVertex();
+  return selectedVertex ? selectedVertex.placeId : null;
 }
 
-// Gebäude zeichnen (state.net[placeId].value)
-function drawHouse(color, placeId) {
-  const vertexIndex = placeToVertexIndex[placeId];
-  if (!vertexIndex) return;
+// ===================== OVERLAY =====================
+function redrawOverlay() {
+  overlayCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-  const p = vertexPoints[vertexIndex - 1];
+  overlayCtx.fillStyle = "rgba(180,180,180,0.9)";
+  for (const p of vertexPoints) {
+    overlayCtx.beginPath();
+    overlayCtx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+    overlayCtx.fill();
+  }
+
+  if (selectedVertex) {
+    overlayCtx.strokeStyle = "red";
+    overlayCtx.lineWidth = 4;
+    overlayCtx.beginPath();
+    overlayCtx.arc(selectedVertex.x, selectedVertex.y, 18, 0, Math.PI * 2);
+    overlayCtx.stroke();
+  }
+}
+
+// ===================== BUILDINGS =====================
+function drawHouse(color, placeId) {
+  const p = vertexPoints.find(v => v.placeId === placeId);
   if (!p) return;
 
   ctx.fillStyle = color;
-  ctx.strokeStyle = "transparent";
-
   ctx.beginPath();
   ctx.arc(p.x, p.y, 30, 0, 2 * Math.PI);
   ctx.fill();
   ctx.stroke();
   ctx.closePath();
-
   const img = document.getElementById("scream");
   if (img) ctx.drawImage(img, p.x - 23, p.y - 28, 44, 54);
 }
 
-
 function drawVilla(color, placeId) {
-  const vertexIndex = placeToVertexIndex[placeId];
-  if (!vertexIndex) return;
-
-  const p = vertexPoints[vertexIndex - 1];
+  const p = vertexPoints.find(v => v.placeId === placeId);
   if (!p) return;
 
-  // Hintergrund-Kreis etwas größer (40 statt 30)
   ctx.fillStyle = color;
   ctx.strokeStyle = "orange";
-  ctx.lineWidth = 4; // Breiterer Rand für Schiffe
-
+  ctx.lineWidth = 4;
   ctx.beginPath();
-  ctx.arc(p.x, p.y, 40, 0, 2 * Math.PI); 
+  ctx.arc(p.x, p.y, 40, 0, 2 * Math.PI);
   ctx.fill();
   ctx.stroke();
   ctx.closePath();
@@ -361,7 +251,20 @@ function drawVilla(color, placeId) {
   }
 }
 
-// Exports in global scope (weil du plain HTML nutzt)
+// ===================== HELPERS =====================
+function resourceToColor(res) {
+  switch (res) {
+    case 1: return "#9c7e00";
+    case 2: return "#ffff00";
+    case 3: return "#a5d02a";
+    case 4: return "darkgreen";
+    case 5: return "#838383";
+    case 6: return "#9fd7ff";
+    case 7: return "#818146";
+    default: return "#444";
+  }
+}
+
 window.setupCanvas = setupCanvas;
 window.getSelectedPlaceId = getSelectedPlaceId;
 window.drawHouse = drawHouse;

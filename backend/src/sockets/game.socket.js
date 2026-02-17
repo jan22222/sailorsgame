@@ -493,7 +493,7 @@ socket.on("buyPoints", (cb) => {
       socket.leave(room);
 
       io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
-
+      
       // ✅ if all abandoned -> delete
       const roomUsers = getRoomUsers(room);
       const allAbandoned = roomUsers.length > 0 && roomUsers.every((u) => u.abandoned === true);
@@ -1008,7 +1008,7 @@ function algoDesert() {
 // Island: z.B. mehr wood/sheep (nur als Beispiel)
 function algoIsland() {
   // weights: [mud,wheat,sheep,wood,ore,empty]
-  const weights = [1, 1, 2, 3, 1, 0.2];
+  const weights = [0.3, 1, 2, 3, 1, 0.2];
   const res = weightedPick(weights) + 1; // -> 1..6
 
   return {
