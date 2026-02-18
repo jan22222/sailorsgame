@@ -34,14 +34,18 @@ function buildingPossible(placeId) {
   return [...result];
 }
 
-function findPlacesAroundArea(areaId) {
-  if (!areaMap.has(areaId)) return [];
+function findPlacesAroundArea(targetArea) {
+  const result = [];
 
-  const places = [...areaMap.get(areaId)];
+  for (const [place, areas] of areaMap) {
+    if (areas.has(targetArea)) {
+      result.push(place);
+    }
+  }
 
-  console.log("found places", places);
-  return places;
+  return result;
 }
+
 module.exports = { 
   adjMap, 
   areaMap,

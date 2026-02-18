@@ -713,7 +713,10 @@ function buildHouse(id, state, user) {
   if (!checkBuildingPossible(id, state, user)) {
     return { ok: false, message: "You cannot build there (distance/connection rule)." };
   }
-
+  if (!checkStandingFree(id, state, user)) {
+  
+    return { ok: false, message: "You cannot build there (distance rule 2)." };
+  }
   if (!enoughResourcesHouse(state, user)) {
     return { ok: false, message: "Not enough resources to build a house." };
   }
@@ -947,6 +950,7 @@ function createMap(map, room, landscape) {
   for (let i = 1; i < 144; i++) {
     map[room][i] = gen(i);   // ✅ landscape wird jetzt angewendet
   }
+  
   return map;
 }
 
