@@ -1,7 +1,7 @@
 // backend/src/sockets/game.socket.js
 
 const formatMessage = require("../utils/messages");
-const { buildingPossible, findPlacesAroundArea } = require("../utils/netz");
+const { buildingPossible, findPlacesAroundArea, findHood } = require("../utils/netz");
 const {
   userJoin,
   getCurrentUser,
@@ -672,7 +672,10 @@ function buildShip(id, state, user) {
   if (!checkBuildingPossible(id, state, user)) {
     return { ok: false, message: "You cannot build there (distance rule)." };
   }
-
+ if (!checkStandingFree(id, state, user)) {
+  
+    return { ok: false, message: "You cannot build there (distance rule 2)." };
+  }
   if (!enoughResourcesShip(state, user)) {
     return { ok: false, message: "Not enough resources for a ship." };
   }
@@ -757,6 +760,22 @@ function checkBuildingPossible(id, state, user) {
   return places.some((p) => state[user.room].net[p].playerNumber == n);
 }
 
+function checkStandingFree(id, state, user) {
+  const room = user.room
+  const placesToCheck = findHood(id)
+
+  console.log("orte gefunden: ", placesToCheck)
+  let response = true
+  placesToCheck.forEach(id=>{
+    const pn = state[room].net[id].playerNumber
+    if (pn!=0){
+      console.log("Nachbar da. Abbruch")
+      response = false
+    }
+  })
+  
+  return response
+}
 // ================= STATE =================
 
 function createState(user, state, room, quantity) {
