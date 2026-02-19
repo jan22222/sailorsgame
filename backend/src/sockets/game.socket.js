@@ -1109,7 +1109,7 @@ function algoNormal() {
 }
 
 function color(n) {
-  return ["red", "green", "blue", "orange", "pink"][n - 1] || "gray";
+  return ["pink",  "lightblue", "lightgreen", "yellow" ][n - 1] || "gray";
 }
 
 function roomAllGone(room) {
