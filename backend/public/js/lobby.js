@@ -37,8 +37,7 @@ function renderRooms(rooms) {
       if (!username) return;
 
       // Redirect: settlers.html bekommt params und client.js macht joinRoom automatisch
-      const url =
-        `settlers.html?mode=join&room=${encodeURIComponent(room)}&username=${encodeURIComponent(username)}`;
+      const url = `settlers.html?mode=join&room=${encodeURIComponent(room)}&username=${encodeURIComponent(username)}`;
 
       window.location.href = url;
     });
@@ -46,13 +45,17 @@ function renderRooms(rooms) {
 }
 
 function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;",
-  }[c]));
+  return String(s).replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[c],
+  );
 }
 
 function escapeAttr(s) {

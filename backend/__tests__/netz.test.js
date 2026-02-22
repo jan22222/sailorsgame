@@ -1,46 +1,72 @@
-function netzErzeugen() {
+const { findPlacesAroundArea } = require("../src/utils/netz");
 
-  const netz = {};
-  let iteration = 1
-  let Startwert
-  while(iteration<=6){
+describe("Ernte-Logik Integration", () => {
+  test("Ecke 1 muss an Hex-Feld 12 grenzen (laut areaMap Algo)", () => {
+    // Laut deiner areaMap.js: i=1 -> [wert, wert+11, wert+12] wobei wert=1
+    // Also Ecke 1 -> Hex [1, 12, 13]
+    const result = findPlacesAroundArea(12);
 
-     Startwert = 1 + (iteration-1) * 22;
-    wert=Startwert
+    expect(result).toContain(1); // Ecke 1 muss in der Liste sein
+  });
 
-      for (let i = 1+(iteration-1)*40; i <= 19 + (iteration-1)*40 ; i+=2) {
-            netz[String(i)] = [wert, wert + 11, wert + 12];
-            wert +=1
+  test("Sollte leeres Array bei ungültiger Hex-ID liefern (kein Absturz)", () => {
+    const result = findPlacesAroundArea(999);
+    expect(result).toEqual([]);
+  });
+});
+
+const { distributeResources } = require("../src/sockets/game.socket.js"); // Pfad anpassen
+
+// Mocking der Abhängigkeiten, falls nötig
+describe("Ressourcen-Verteilung Test (Fokus: MUD ID 3)", () => {
+  test("Sollte MUD (ID 3) korrekt an Spieler verteilen, wenn die entsprechende Zahl gewürfelt wird", () => {
+    // 1. Setup: Ein fiktiver Raum-Status
+    const roomId = "testRoom";
+    const slotId = "1"; // Spieler 1
+    const mudResourceId = 3;
+    const targetAreaId = 12; // Das Hex-Feld mit der gewürfelten Zahl
+
+    const mockState = {
+      [roomId]: {
+        // Spieler 1 Daten
+        [slotId]: {
+          username: "TestPlayer",
+          [mudResourceId]: 0, // Startet mit 0 Mud
+        },
+        // Die Karte: Hex 12 ist ein MUD-Feld
+        roomMap: {
+          [targetAreaId]: { resource: mudResourceId, number: 8 },
+        },
+        // Das Netz: Ein Haus von Spieler 1 steht an Ecke 1, welche an Hex 12 grenzt
+        net: {
+          1: { playerNumber: 1, value: 1 }, // 1 = Siedlung/Haus
+        },
+        playerCount: 1,
+      },
+    };
+
+    // 2. Aktion: Ressourcen für Hex 12 verteilen (z.B. weil eine 8 gewürfelt wurde)
+    // Wir simulieren den Teil der distributeResources Logik
+    const area = mockState[roomId].roomMap[targetAreaId];
+    const places = findPlacesAroundArea(targetAreaId);
+
+    // In deinem Code loopen wir durch die gefundenen Plätze
+    places.forEach((p) => {
+      const building = mockState[roomId].net[p];
+      if (building && building.playerNumber == slotId) {
+        const resId = area.resource; // Sollte 3 sein
+        const currentAmount = mockState[roomId][slotId][resId];
+        mockState[roomId][slotId][resId] = currentAmount + building.value;
       }
-    
-    wert=Startwert
+    });
 
-      for (let i = 2+(iteration-1)*40 ; i <= 20 + (iteration-1)*40; i+=2) {
-            netz[String(i)] = [wert, wert + 1, wert + 11];
-            wert +=1
-      }
+    // 3. Assert: Hat Spieler 1 nun 1x MUD (Key 3)?
+    expect(mockState[roomId][slotId][3]).toBe(1);
 
-    Startwert = Startwert+11;
-    wert=Startwert
-   
-      for (let i = 21+ (iteration-1)*40; i <= 39 + (iteration-1)*40; i+=2) {
-            netz[String(i)] = [wert, wert + 1, wert + 11];
-            wert +=1
-      }
-
-    Startwert++;
-    wert=Startwert
-
-      for (let i = 22 + (iteration-1)*40; i <= 40 + (iteration-1)*40; i+=2) {
-            netz[String(i)] = [wert, wert+10 , wert + 11];
-            wert +=1
-      }
-
-    iteration++
-  }
-    
-  return netz
-}    
+    // Bonus: Sicherstellen, dass es nicht fälschlicherweise bei Erz (1) gelandet ist
+    expect(mockState[roomId][slotId][1]).toBeUndefined();
+  });
+});
 //     } else {
 //       netz[String(i)] = [Startwert, Startwert + 10, Startwert + 11];
 //     }
@@ -56,13 +82,6 @@ function netzErzeugen() {
 //     } else {
 //       if (i % 2 === 1) {
 // Test
-test('netzs ',()=>{
-  const netz = netzErzeugen();
-  console.log(netz);
-
-})
-
-
 
 // test('jede area wird genau 6x getroffen', () => {
 //   const areaToPlaces = new Map();

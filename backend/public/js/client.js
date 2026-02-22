@@ -1,8 +1,8 @@
 // public/js/client.js
 
 let lastTurnPlayer = null;
-let inGame = false;          // ✅ Aktionen erst nach init erlauben
-let mapCache = null;         // Map cache
+let inGame = false; // ✅ Aktionen erst nach init erlauben
+let mapCache = null; // Map cache
 
 function getOrCreatePlayerId() {
   let playerId = sessionStorage.getItem("playerId");
@@ -21,7 +21,7 @@ const playerId = getOrCreatePlayerId();
 const params = Qs.parse(location.search, { ignoreQueryPrefix: true });
 const username = params.username || "anon";
 const room = params.room || "room1";
-const quantity = params.quantity;           // nur bei create vorhanden
+const quantity = params.quantity; // nur bei create vorhanden
 const landscape = params.landscape || "normal";
 const isCreate = quantity !== undefined && quantity !== null && quantity !== "";
 
@@ -32,8 +32,6 @@ window.socket = socket;
 // ✅ Listener VOR connect/enter registrieren
 socket.on("init", handleInit);
 socket.on("gameState", handleGameState);
-
-
 
 socket.on("message", (message) => {
   console.log("[client] got message", message);
@@ -50,7 +48,13 @@ socket.on("error", (e) => {
 });
 // 3) enter-flow als Funktion (wird bei jedem connect benutzt)
 function runEnterFlow() {
-  console.log("[client] runEnterFlow", { socketId: socket.id, playerId, username, room, isCreate });
+  console.log("[client] runEnterFlow", {
+    socketId: socket.id,
+    playerId,
+    username,
+    room,
+    isCreate,
+  });
 
   socket.emit(
     "enter",
@@ -92,15 +96,18 @@ function runEnterFlow() {
       if (res?.action === "join") {
         socket.emit("joinRoom", { playerId, room: res.room, username });
       }
-    }
+    },
   );
 }
 socket.on("gameOver", (raw) => {
   let p = {};
-  try { p = JSON.parse(raw); } catch {}
+  try {
+    p = JSON.parse(raw);
+  } catch {}
 
-  const winner =
-    p.draw ? "DRAW" : (p.winnerNames?.[0] || `Player ${p.winnerNumber}`);
+  const winner = p.draw
+    ? "DRAW"
+    : p.winnerNames?.[0] || `Player ${p.winnerNumber}`;
 
   const best = p.bestPoints ?? "?";
 
@@ -114,7 +121,7 @@ socket.on("gameOver", (raw) => {
 
   alert(
     `GAME OVER\nWinner: ${winner}\nWinning points: ${best}\n\n` +
-    (lines.length ? lines.join("\n") : "")
+      (lines.length ? lines.join("\n") : ""),
   );
 
   // hard leave
@@ -123,12 +130,10 @@ socket.on("gameOver", (raw) => {
   window.location = "../index.html";
 });
 
-
-
 // ✅ WICHTIG: bei JEDEM connect enter erneut starten
 socket.on("connect", () => {
   console.log("[client] CONNECT socket.id =", socket.id);
-  inGame = false;          // bis init wieder da ist
+  inGame = false; // bis init wieder da ist
   runEnterFlow();
 });
 
@@ -141,14 +146,14 @@ socket.on("disconnect", (reason) => {
 //   techLog(String(msg));
 // });
 socket.on("tech", (msg) => {
-  if (Array.isArray(msg)) msg.forEach(m => techLog(String(m)));
+  if (Array.isArray(msg)) msg.forEach((m) => techLog(String(m)));
   else techLog(String(msg));
 });
 
 socket.on("roomUsers", ({ room, users }) => {
   console.log("[client] roomUsers", room, users);
   app.$data.room = room;
-  app.$data.userlisto = users;   // Vue rendert daraus die Namen
+  app.$data.userlisto = users; // Vue rendert daraus die Namen
 });
 socket.on("skipTurn", () => {
   const user = getCurrentUser(socket.id);
@@ -172,7 +177,7 @@ socket.on("skipTurn", () => {
 function handleInit(map) {
   console.log("[client] INIT received", map ? Object.keys(map).length : map);
   mapCache = map;
-  inGame = true;                 // ✅ ab jetzt darf man bauen/chatten
+  inGame = true; // ✅ ab jetzt darf man bauen/chatten
   window.setupCanvas(map);
 }
 
@@ -300,7 +305,9 @@ function outputMessage(message) {
 }
 
 function handleGameOver(data) {
-  try { JSON.parse(data); } catch {}
+  try {
+    JSON.parse(data);
+  } catch {}
   alert("Game Over");
 }
 
@@ -347,18 +354,28 @@ function techLog(message, kind = "error") {
 
 // deutsche/unklare server-texte -> englische, technische messages
 function toEnglishError(e) {
-  const raw = (e && (e.text || e.message || e.reason)) ? String(e.text || e.message || e.reason) : "Unknown error";
+  const raw =
+    e && (e.text || e.message || e.reason)
+      ? String(e.text || e.message || e.reason)
+      : "Unknown error";
 
   const map = {
     "Not logged in.": "Not authenticated (no user session on server).",
     "Not your turn.": "Action rejected: not your turn.",
-    "Room state not found.": "Room state missing on server (state[room] not found).",
-    "Game is not active yet.": "Game not active yet (waiting for players/start).",
-    "Invalid or occupied location.": "Invalid build location or already occupied.",
-    "You cannot build there (distance rule).": "Build blocked by distance/connection rule.",
-    "You cannot build there (distance/connection rule).": "Build blocked by distance/connection rule.",
-    "Not enough resources to build a boat.": "Not enough resources to build a house.",
-    "Not enough resources for a ship (3 Wheat, 5 Ore).": "Not enough resources for a ship.",
+    "Room state not found.":
+      "Room state missing on server (state[room] not found).",
+    "Game is not active yet.":
+      "Game not active yet (waiting for players/start).",
+    "Invalid or occupied location.":
+      "Invalid build location or already occupied.",
+    "You cannot build there (distance rule).":
+      "Build blocked by distance/connection rule.",
+    "You cannot build there (distance/connection rule).":
+      "Build blocked by distance/connection rule.",
+    "Not enough resources to build a boat.":
+      "Not enough resources to build a house.",
+    "Not enough resources for a ship (3 Wheat, 5 Ore).":
+      "Not enough resources for a ship.",
   };
 
   return map[raw] || raw;

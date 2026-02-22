@@ -1,95 +1,108 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<title>Sailors & Islands — Rules</title>
-<style>
-  body{
-    font-family: Arial, sans-serif;
-    background:#0f172a;
-    color:#e5e7eb;
-    margin:0;
-    padding:40px;
-  }
-  .box{
-    max-width:900px;
-    margin:auto;
-    background:#111827;
-    padding:30px;
-    border-radius:12px;
-    box-shadow:0 0 20px rgba(0,0,0,.4);
-  }
-  h1{
-    color:#22c55e;
-  }
-  h2{
-    margin-top:25px;
-    color:#38bdf8;
-  }
-  ul{
-    line-height:1.6;
-  }
-  a{
-    display:inline-block;
-    margin-top:20px;
-    padding:10px 18px;
-    background:#22c55e;
-    color:#000;
-    border-radius:6px;
-    text-decoration:none;
-    font-weight:bold;
-  }
-</style>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Sailors & Islands — Rules</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #0f172a;
+        color: #e5e7eb;
+        margin: 0;
+        padding: 40px;
+      }
+      .box {
+        max-width: 900px;
+        margin: auto;
+        background: #111827;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+      }
+      h1 {
+        color: #22c55e;
+      }
+      h2 {
+        margin-top: 25px;
+        color: #38bdf8;
+      }
+      ul {
+        line-height: 1.6;
+      }
+      a {
+        display: inline-block;
+        margin-top: 20px;
+        padding: 10px 18px;
+        background: #22c55e;
+        color: #000;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <h1>Sailors & Islands — Game Rules</h1>
 
-<div class="box">
-<h1>Sailors & Islands — Game Rules</h1>
+      <h2>Goal</h2>
+      <ul>
+        <li>The first player reaching <b>30 points</b> wins the game.</li>
+      </ul>
 
-<h2>Goal</h2>
-<ul>
-<li>The first player reaching <b>30 points</b> wins the game.</li>
-</ul>
+      <h2>Setup Phase</h2>
+      <ul>
+        <li>
+          Players build in this order: <b>1 → 2 → ... → N → N → ... → 1</b>.
+        </li>
+        <li>Each turn allows building <b>one structure only</b>.</li>
+        <li>No resources are produced during setup.</li>
+        <li>The game begins automatically after setup.</li>
+        <li>
+          Warning: If you are the Nth player: Build, skip, build again, then
+          skip. Make sure you build twice.
+        </li>
+        <li>
+          Warning: If you build a ship first, connection rule already exists. If
+          you build a boat, that is not the case.
+        </li>
+      </ul>
 
-<h2>Setup Phase</h2>
-<ul>
-<li>Players build in this order: <b>1 → 2 → ... → N → N → ... → 1</b>.</li>
-<li>Each turn allows building <b>one structure only</b>.</li>
-<li>No resources are produced during setup.</li>
-<li>The game begins automatically after setup.</li>
-<li>Warning: If you are the Nth player: Build, skip, build again, then skip. Make sure you build twice.</li>
-<li>Warning: If you build a ship first, connection rule already exists. If you build a boat, that is not the case.</li>
-</ul>
+      <h2>Main Game</h2>
+      <ul>
+        <li>At the start of each turn a dice roll distributes resources.</li>
+        <li>
+          If a <b>7</b> is rolled, the dice rolls again. Only if a second 7
+          appears, the 7 counts.
+        </li>
+        <li>Players may build houses, ships, and trade resources.</li>
+      </ul>
 
-<h2>Main Game</h2>
-<ul>
-<li>At the start of each turn a dice roll distributes resources.</li>
-<li>If a <b>7</b> is rolled, the dice rolls again.  
-Only if a second 7 appears, the 7 counts.</li>
-<li>Players may build houses, ships, and trade resources.</li>
-</ul>
+      <h2>Buildings</h2>
+      <ul>
+        <li>
+          House: increases points and produces resources. Costs 2-1-2
+          mud-sheep-wood
+        </li>
+        <li>
+          Ship: costs resources but gives more points. Costs 5-5 ore-wheat
+        </li>
+      </ul>
 
-<h2>Buildings</h2>
-<ul>
-<li>House: increases points and produces resources. Costs 2-1-2 mud-sheep-wood</li>
-<li>Ship: costs resources but gives more points. Costs 5-5 ore-wheat</li>
-</ul>
+      <h2>Trading</h2>
+      <ul>
+        <li>Players may trade <b>4:1</b> with the bank.</li>
+      </ul>
 
-<h2>Trading</h2>
-<ul>
-<li>Players may trade <b>4:1</b> with the bank.</li>
-</ul>
-
-<h2>Trading</h2>
-<ul>
-<li>Players may trade <b>4:1</b> with the bank.</li>
-</ul>
-<h2>Winning</h2>
-<ul>
-<li>You reach 30 points, you win.</li>
-</ul>
-<a href="index.html">Back to Lobby</a>
-</div>
-
-</body>
+      <h2>Trading</h2>
+      <ul>
+        <li>Players may trade <b>4:1</b> with the bank.</li>
+      </ul>
+      <h2>Winning</h2>
+      <ul>
+        <li>You reach 30 points, you win.</li>
+      </ul>
+      <a href="index.html">Back to Lobby</a>
+    </div>
+  </body>
 </html>

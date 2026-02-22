@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -38,7 +38,10 @@
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
         z-index: 999999;
 
-        transition: transform 140ms ease, background 140ms ease, box-shadow 140ms ease;
+        transition:
+          transform 140ms ease,
+          background 140ms ease,
+          box-shadow 140ms ease;
         user-select: none;
       }
 
@@ -64,63 +67,79 @@
       }
 
       @keyframes helpPulse {
-        0% { transform: scale(0.92); opacity: 0.2; }
-        60% { transform: scale(1.08); opacity: 0.0; }
-        100% { transform: scale(1.08); opacity: 0.0; }
+        0% {
+          transform: scale(0.92);
+          opacity: 0.2;
+        }
+        60% {
+          transform: scale(1.08);
+          opacity: 0;
+        }
+        100% {
+          transform: scale(1.08);
+          opacity: 0;
+        }
       }
     </style>
-	<style>
-  body {
-    background: linear-gradient(135deg, #1e3c72, #2a5298);
-    color: white;
-  }
+    <style>
+      body {
+        background: linear-gradient(135deg, #1e3c72, #2a5298);
+        color: white;
+      }
 
-  .join-container {
-    max-width: 640px;        /* vorher 500px */
-    width: 100%;
-    transform: scale(1.15); /* 🔥 macht alles sofort größer */
-    transform-origin: top center;
-  }
+      .join-container {
+        max-width: 640px; /* vorher 500px */
+        width: 100%;
+        transform: scale(1.15); /* 🔥 macht alles sofort größer */
+        transform-origin: top center;
+      }
 
-  .join-header h1 {
-    font-size: 34px;
-    letter-spacing: 1px;
-  }
+      .join-header h1 {
+        font-size: 34px;
+        letter-spacing: 1px;
+      }
 
-  .join-main label {
-    font-size: 18px;
-  }
+      .join-main label {
+        font-size: 18px;
+      }
 
-  .join-main input,
-  .join-main select {
-    font-size: 18px;
-    height: 48px;
-  }
+      .join-main input,
+      .join-main select {
+        font-size: 18px;
+        height: 48px;
+      }
 
-  .join-main .btn {
-    font-size: 20px;
-    padding: 12px;
-    margin-top: 10px;
-  }
+      .join-main .btn {
+        font-size: 20px;
+        padding: 12px;
+        margin-top: 10px;
+      }
 
-  /* OR in der Mitte größer */
-  .or-separator {
-    font-size: 80px;
-    font-weight: 900;
-    opacity: 0.4;
-    margin: 0 30px;
-  }
+      /* OR in der Mitte größer */
+      .or-separator {
+        font-size: 80px;
+        font-weight: 900;
+        opacity: 0.4;
+        margin: 0 30px;
+      }
 
-  /* Open Games Buttons */
-  #roomsList button {
-    font-size: 18px;
-    padding: 12px;
-  }
-</style>
-
+      /* Open Games Buttons */
+      #roomsList button {
+        font-size: 18px;
+        padding: 12px;
+      }
+    </style>
   </head>
 
-  <body style="height: 100vh; display:flex; flex-direction:row; align-items:center; justify-content:space-around;">
+  <body
+    style="
+      height: 100vh;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-around;
+    "
+  >
     <!-- CREATE -->
     <div class="join-container">
       <header class="join-header">
@@ -132,17 +151,37 @@
 
           <div class="form-control">
             <label for="usernameCreate">Player</label>
-            <input type="text" name="username" id="usernameCreate" placeholder="Enter username..." required />
+            <input
+              type="text"
+              name="username"
+              id="usernameCreate"
+              placeholder="Enter username..."
+              required
+            />
           </div>
 
           <div class="form-control">
             <label for="quantity">Number of players (1 to 5)</label>
-            <input type="number" id="quantity" name="quantity" min="1" max="4" value="2" required />
+            <input
+              type="number"
+              id="quantity"
+              name="quantity"
+              min="1"
+              max="4"
+              value="2"
+              required
+            />
           </div>
 
           <div class="form-control">
             <label for="roomCreate">Room</label>
-            <input type="text" name="room" id="roomCreate" placeholder="Enter gamename..." required />
+            <input
+              type="text"
+              name="room"
+              id="roomCreate"
+              placeholder="Enter gamename..."
+              required
+            />
           </div>
 
           <div class="form-control">
@@ -175,12 +214,24 @@
 
           <div class="form-control">
             <label for="roomJoin">Room</label>
-            <input type="text" name="room" id="roomJoin" placeholder="Enter gamename..." required />
+            <input
+              type="text"
+              name="room"
+              id="roomJoin"
+              placeholder="Enter gamename..."
+              required
+            />
           </div>
 
           <div class="form-control">
             <label for="usernameJoin">Player</label>
-            <input type="text" name="username" id="usernameJoin" placeholder="Enter username..." required />
+            <input
+              type="text"
+              name="username"
+              id="usernameJoin"
+              placeholder="Enter username..."
+              required
+            />
           </div>
 
           <div class="form-control">
@@ -189,14 +240,17 @@
         </form>
       </main>
 
-      <hr style="margin:18px 0; opacity:0.3" />
+      <hr style="margin: 18px 0; opacity: 0.3" />
 
       <!-- OPEN GAMES LIST -->
       <header class="join-header">
         <h1>Open Games</h1>
       </header>
       <main class="join-main">
-        <div id="roomsList" style="display:flex; flex-direction:column; gap:8px;"></div>
+        <div
+          id="roomsList"
+          style="display: flex; flex-direction: column; gap: 8px"
+        ></div>
       </main>
     </div>
 

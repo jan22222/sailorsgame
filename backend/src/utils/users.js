@@ -67,7 +67,7 @@ function userJoin(playerId, socketId, username, room) {
   }
 
   // RECONNECT (was offline)
-  
+
   user.room = room;
   // abandoned NICHT automatisch zurücksetzen
   setOnline(user, socketId);
@@ -79,7 +79,7 @@ function userJoin(playerId, socketId, username, room) {
  * Find user by current socketId
  */
 function getCurrentUser(socketId) {
-  return allUsers().find(u => u.socketId === socketId);
+  return allUsers().find((u) => u.socketId === socketId);
 }
 
 /**
@@ -98,7 +98,7 @@ function userLeave(socketId) {
  * Room users (online + offline)
  */
 function getRoomUsers(room) {
-  return allUsers().filter(u => u.room === room);
+  return allUsers().filter((u) => u.room === room);
 }
 
 /**
@@ -122,4 +122,3 @@ module.exports = {
   setOffline,
   markAbandoned,
 };
-

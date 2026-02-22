@@ -1,16 +1,21 @@
-const net1 = require('./adjMap.js'); // jetzt ist das ein Array
-const net2 = require('./areaMap.js');
+const net1 = require("./adjMap.js"); // jetzt ist das ein Array
+const net2 = require("./areaMap.js");
 
 // adjMap als Map rekonstruieren
 const adjMap = new Map(
-  Object.entries(net1).map(([id, neighbors]) => [Number(id), new Set(neighbors)])
+  Object.entries(net1).map(([id, neighbors]) => [
+    Number(id),
+    new Set(neighbors),
+  ]),
 );
 
 // areaMap analog, falls nötig
 const areaMap = new Map(
-  Object.entries(net2).map(([id, neighbors]) => [Number(id), new Set(neighbors)])
+  Object.entries(net2).map(([id, neighbors]) => [
+    Number(id),
+    new Set(neighbors),
+  ]),
 );
-
 
 function findHood(nodeId) {
   if (!adjMap.has(nodeId)) return [];
@@ -33,23 +38,29 @@ function buildingPossible(placeId) {
 
   return [...result];
 }
+const hexToCorners = new Map();
 
-function findPlacesAroundArea(targetArea) {
-  const result = [];
-
-  for (const [place, areas] of areaMap) {
-    if (areas.has(targetArea)) {
-      result.push(place);
+for (const [cornerId, hexSet] of areaMap) {
+  for (const hexId of hexSet) {
+    if (!hexToCorners.has(hexId)) {
+      hexToCorners.set(hexId, []);
     }
+    hexToCorners.get(hexId).push(cornerId);
   }
-
-  return result;
 }
 
-module.exports = { 
-  adjMap, 
+// --- OPTIMIERT: findPlacesAroundArea nutzt jetzt den schnellen Map-Zugriff ---
+function findPlacesAroundArea(targetArea) {
+  // Sicherstellen, dass targetArea eine Zahl ist, falls sie als String vom Socket kommt
+  const id = Number(targetArea);
+  return hexToCorners.get(id) || [];
+}
+
+// Export nicht vergessen (bleibt gleich)
+module.exports = {
+  adjMap,
   areaMap,
   findHood,
   findPlacesAroundArea,
-  buildingPossible
-}
+  buildingPossible,
+};

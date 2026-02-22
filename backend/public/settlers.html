@@ -1,87 +1,101 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css"
+    />
     <link rel="stylesheet" href="css/style.css" />
     <title>SAILORS & ISLANDS</title>
-    <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700&family=Source+Sans+Pro:wght@700&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700&family=Source+Sans+Pro:wght@700&display=swap"
+      rel="stylesheet"
+    />
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.12/dist/vue.js"></script>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" />
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+    />
 
     <style>
-        /* Layout Fixes für Vollbild-Gefühl */
-        body {
-            margin: 0;
-            overflow: hidden; /* Verhindert Scrollen der ganzen Seite */
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-        #app {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-        .main-content {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-            background: #6ba7df;
-        }
-        /* Map Bereich */
-        .wrapper-game {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        #canvasWrap {
-            position: relative;
-            max-width: 90vh; /* Map bleibt quadratisch und im Sichtfeld */
-            max-height: 90vh;
-            width: 100%;
-            height: 100%;
-        }
-        #my-canvas, #overlay-canvas {
-            width: 100% !important;
-            height: 100% !important;
-            cursor: crosshair;
-        }
-        /* Sidebars */
-        .chat-sidebar-area {
-            width: 350px;
-            background: white;
-            display: flex;
-            flex-direction: column;
-            border-right: 2px solid #1c3ac0;
-        }
-        .controls-sidebar-area {
-            width: 300px;
-            background: rgba(255,255,255,0.1);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 10px;
-            overflow-y: auto;
-            border-left: 2px solid #1c3ac0;
-        }
-        .resource-bar {
-            justify-content: center;
-            padding: 5px !important;
-            gap: 10px;
-            flex-wrap: nowrap !important;
-        }
-        /* Kleine Anpassung der Counter für die Leiste */
-        .res-block .round-item {
-            width: 80px; height: 80px; font-size: 30px;
-        }
-        .res-block .inside-item {
-            width: 50px; height: 50px; font-size: 25px;
-        }
-                .help-button {
+      /* Layout Fixes für Vollbild-Gefühl */
+      body {
+        margin: 0;
+        overflow: hidden; /* Verhindert Scrollen der ganzen Seite */
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+      }
+      #app {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+      }
+      .main-content {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+        background: #6ba7df;
+      }
+      /* Map Bereich */
+      .wrapper-game {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+      }
+      #canvasWrap {
+        position: relative;
+        max-width: 90vh; /* Map bleibt quadratisch und im Sichtfeld */
+        max-height: 90vh;
+        width: 100%;
+        height: 100%;
+      }
+      #my-canvas,
+      #overlay-canvas {
+        width: 100% !important;
+        height: 100% !important;
+        cursor: crosshair;
+      }
+      /* Sidebars */
+      .chat-sidebar-area {
+        width: 350px;
+        background: white;
+        display: flex;
+        flex-direction: column;
+        border-right: 2px solid #1c3ac0;
+      }
+      .controls-sidebar-area {
+        width: 300px;
+        background: rgba(255, 255, 255, 0.1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 10px;
+        overflow-y: auto;
+        border-left: 2px solid #1c3ac0;
+      }
+      .resource-bar {
+        justify-content: center;
+        padding: 5px !important;
+        gap: 10px;
+        flex-wrap: nowrap !important;
+      }
+      /* Kleine Anpassung der Counter für die Leiste */
+      .res-block .round-item {
+        width: 80px;
+        height: 80px;
+        font-size: 30px;
+      }
+      .res-block .inside-item {
+        width: 50px;
+        height: 50px;
+        font-size: 25px;
+      }
+      .help-button {
         position: fixed;
         bottom: 22px;
         right: 22px;
@@ -90,23 +104,25 @@
         border-radius: 50%;
         background: rgba(0, 0, 0, 0.75);
         color: #ffffff;
-        font-size: 36px;          /* 🔥 größer ? */
+        font-size: 36px; /* 🔥 größer ? */
         font-weight: 900;
         text-align: center;
         line-height: 56px;
         text-decoration: none;
         z-index: 100000;
-        box-shadow: 0 0 18px rgba(0,0,0,0.5);
-        transition: transform 0.15s ease, background 0.15s ease;
-        }
+        box-shadow: 0 0 18px rgba(0, 0, 0, 0.5);
+        transition:
+          transform 0.15s ease,
+          background 0.15s ease;
+      }
 
-        .help-button:hover {
+      .help-button:hover {
         transform: scale(1.12);
         background: rgba(255, 255, 255, 0.95);
         color: #1c3ac0;
-        }
+      }
 
-        .techlog{
+      .techlog {
         position: fixed;
         right: 16px;
         bottom: 16px;
@@ -116,155 +132,273 @@
 
         background: #061b0a;
         border: 1px solid #1cff4a;
-        box-shadow: 0 0 0 1px rgba(28,255,74,0.2), 0 10px 30px rgba(0,0,0,0.45);
+        box-shadow:
+          0 0 0 1px rgba(28, 255, 74, 0.2),
+          0 10px 30px rgba(0, 0, 0, 0.45);
         border-radius: 12px;
 
         color: #1cff4a;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
         font-size: 12px;
         line-height: 1.35;
 
         padding: 10px 12px;
         opacity: 0.95;
-        }
+      }
 
-        .techlog .row{
+      .techlog .row {
         display: flex;
         gap: 10px;
         margin: 6px 0;
-        }
+      }
 
-        .techlog .ts{
+      .techlog .ts {
         opacity: 0.75;
         white-space: nowrap;
-        }
+      }
 
-        .techlog .msg{
+      .techlog .msg {
         white-space: pre-wrap;
         word-break: break-word;
-        }
+      }
 
-        .techlog .kind{
+      .techlog .kind {
         opacity: 0.9;
-        }
+      }
 
-        .techlog .kind.error{ color: #1cff4a; } /* bewusst grün */
+      .techlog .kind.error {
+        color: #1cff4a;
+      } /* bewusst grün */
 
-        #techBox{
-            position: fixed;
-            right: 12px;
-            bottom: 80px;          /* Platz für Skip Button */
+      #techBox {
+        position: fixed;
+        right: 12px;
+        bottom: 80px; /* Platz für Skip Button */
 
-            width: 320px;
-            height: 140px;         /* feste Höhe */
-            overflow: hidden;
+        width: 320px;
+        height: 140px; /* feste Höhe */
+        overflow: hidden;
 
-            background: #001a00;
-            border: 2px solid #00ff66;
-            color: #00ff66;
-            font-family: monospace;
-            font-size: 13px;
+        background: #001a00;
+        border: 2px solid #00ff66;
+        color: #00ff66;
+        font-family: monospace;
+        font-size: 13px;
 
-            padding: 8px;
-            box-shadow: 0 0 10px #00ff66;
-        }
-        .techLine{
-            margin-bottom:4px;
-        }
-
-
+        padding: 8px;
+        box-shadow: 0 0 10px #00ff66;
+      }
+      .techLine {
+        margin-bottom: 4px;
+      }
     </style>
-</head>
+  </head>
 
-<body>
+  <body>
     <div id="app">
-        <header class="chat-header" style="height: 70px; flex-shrink: 0;">
-            <div id="turnToast" class="turn-toast"></div>
-            <div style="display: flex; align-items: center;">
-                <img id="scream" src="rocket.png" alt="Boat" width="40" height="50" style="background: #bbb; border-radius: 50%; padding: 5px; margin-right: 15px;" />
-                <h1 style="font-size: 24px; margin: 0;">Sailors & Islands</h1>
-            </div>
-            <ul id="users" style="margin: 0; padding: 0; display: flex; gap: 20px;">
-                <li v-for="(user, index) in userlisto" :class="[colors[index]]" :key="user.username" style="font-size: 20px;">
-                    {{ user.username }}
-                </li>
-            </ul>
-            <a class="btn btn-danger" @click="leave" style="color: white;">Leave</a>
-        </header>
-        <div id="techBox" class="techlog" aria-live="polite"></div>
+      <header class="chat-header" style="height: 70px; flex-shrink: 0">
+        <div id="turnToast" class="turn-toast"></div>
+        <div style="display: flex; align-items: center">
+          <img
+            id="scream"
+            src="rocket.png"
+            alt="Boat"
+            width="40"
+            height="50"
+            style="
+              background: #bbb;
+              border-radius: 50%;
+              padding: 5px;
+              margin-right: 15px;
+            "
+          />
+          <h1 style="font-size: 24px; margin: 0">Sailors & Islands</h1>
+        </div>
+        <ul id="users" style="margin: 0; padding: 0; display: flex; gap: 20px">
+          <li
+            v-for="(user, index) in userlisto"
+            :class="[colors[index]]"
+            :key="user.username"
+            style="font-size: 20px"
+          >
+            {{ user.username }}
+          </li>
+        </ul>
+        <a class="btn btn-danger" @click="leave" style="color: white">Leave</a>
+      </header>
+      <div id="techBox" class="techlog" aria-live="polite"></div>
 
-        <div class="flex-container resource-bar" style="background: #2c3e50; padding: 10px; display: flex; justify-content: center; gap: 15px;">
-    
-    <div v-for="(res, index) in [
+      <div
+        class="flex-container resource-bar"
+        style="
+          background: #2c3e50;
+          padding: 10px;
+          display: flex;
+          justify-content: center;
+          gap: 15px;
+        "
+      >
+        <div
+          v-for="(res, index) in [
         {id: 1, n:'metals', v:erz, c:'#838383', btnClass:'metals'},
         {id: 2, n:'grains', v:weizen, c:'#dbdb00', btnClass:'grains'},
         {id: 3, n:'mud', v:lehm, c:'#9c7e00', btnClass:'mud'},
         {id: 4, n:'sheep', v:schaf, c:'#a5d02a', btnClass:'sheep'},
         {id: 5, n:'wood', v:holz, c:'darkgreen', btnClass:'wood'}
-    ]" 
-    class="res-container-box" 
-    :style="'border: 2px solid ' + res.c + '; padding: 8px; border-radius: 12px; background: rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center;'">
-        
-        <counter :texto="res.n" :coun="res.v" :fill="res.c" text-color="#fff"></counter>
-        
-        <div class="trade-row" style="margin-top: 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;">
-            <button v-for="target in [
+    ]"
+          class="res-container-box"
+          :style="'border: 2px solid ' + res.c + '; padding: 8px; border-radius: 12px; background: rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center;'"
+        >
+          <counter
+            :texto="res.n"
+            :coun="res.v"
+            :fill="res.c"
+            text-color="#fff"
+          ></counter>
+
+          <div
+            class="trade-row"
+            style="
+              margin-top: 10px;
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 4px;
+            "
+          >
+            <button
+              v-for="target in [
                 {id:1, c:'metals'}, {id:2, c:'grains'}, {id:3, c:'mud'}, {id:4, c:'sheep'}, {id:5, c:'wood'}
-            ]" 
-            v-if="target.id !== res.id" 
-            :class="'trade-btn ' + target.c"
-            @click="trade(res.id, target.id)"
-            style="width: 25px; height: 25px; border-radius: 4px; border: 1px solid white; font-size: 10px; color: white; display: flex; align-items: center; justify-content: center;">
-                →
+            ]"
+              v-if="target.id !== res.id"
+              :class="'trade-btn ' + target.c"
+              @click="trade(res.id, target.id)"
+              style="
+                width: 25px;
+                height: 25px;
+                border-radius: 4px;
+                border: 1px solid white;
+                font-size: 10px;
+                color: white;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              "
+            >
+              →
             </button>
+          </div>
         </div>
-    </div>
 
-    <div class="res-container-box" style="border: 2px solid white; padding: 8px; border-radius: 12px;">
-        <h2 v-if="roundsLeft > 15" style="color: #ffeb3b; font-size: 14px; text-align: center; margin-bottom: 5px;"></h2>
-        <counter texto="Wurf" :coun="Wurf === 0 ? '...' : Wurf" fill="#fff" text-color="#111"></counter>
-        <button @click="buyPoints">+3 Points (pay 3 of each)</button>
-
-    </div>
-</div>
-
-        <div class="main-content">
-            <div class="chat-sidebar-area">
-                <div class="chat-messages" style="flex: 1; padding: 15px;"></div>
-                <div class="chat-form-container">
-                    <form id="chat-form" v-on:submit.prevent="onSubmit">
-                        <input id="msg" type="text" placeholder="Message..." required autocomplete="off" />
-                        <button class="btn"><i class="fas fa-paper-plane"></i></button>
-                    </form>
-                </div>
-            </div>
-
-            <div class="wrapper-game">
-    <div id="canvasWrap">
-        <canvas id="my-canvas" width="1250" height="1250" 
-            style="position:absolute; left:0; top:0; border: 5px double #1b1c1d; border-radius: 40px; background: rgba(255,255,255,0.1); z-index: 1;"></canvas>
-        
-        <canvas id="overlay-canvas" width="1250" height="1250" 
-            style="position:absolute; left:0; top:0; z-index: 2; pointer-events: auto;"></canvas>
-    </div>
-</div>
-
-            <div class="controls-sidebar-area">
-                <h4 style="color: white; text-align: center;">{{comp}}'s Turn</h4>
-                <counter texto="Time" :coun="time" fill="#ffeb3b"></counter>
-                
-                <div style="width: 100%; margin: 20px 0; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 10px;">
-                    <h5 style="color: white; text-align: center;">Build</h5>
-                    <button @click="houseBuilder" class="btn btn-primary btn-block" style="font-size: 20px; margin-bottom: 10px;">+ Boat</button>
-                    <button @click="shipBuilder" class="btn btn-success btn-block" style="font-size: 20px;">+ Ship</button>
-                </div>
-
-                <counter texto="Points" :coun="points" fill="#4caf50"></counter>
-                <button id="skipBtn" class="btn btn-warning" @click="skipTurn">
-                    Skip Turn
-                </button>
-            </div>
+        <div
+          class="res-container-box"
+          style="border: 2px solid white; padding: 8px; border-radius: 12px"
+        >
+          <h2
+            v-if="roundsLeft > 15"
+            style="
+              color: #ffeb3b;
+              font-size: 14px;
+              text-align: center;
+              margin-bottom: 5px;
+            "
+          ></h2>
+          <counter
+            texto="Wurf"
+            :coun="Wurf === 0 ? '...' : Wurf"
+            fill="#fff"
+            text-color="#111"
+          ></counter>
+          <button @click="buyPoints">+3 Points (pay 3 of each)</button>
         </div>
+      </div>
+
+      <div class="main-content">
+        <div class="chat-sidebar-area">
+          <div class="chat-messages" style="flex: 1; padding: 15px"></div>
+          <div class="chat-form-container">
+            <form id="chat-form" v-on:submit.prevent="onSubmit">
+              <input
+                id="msg"
+                type="text"
+                placeholder="Message..."
+                required
+                autocomplete="off"
+              />
+              <button class="btn"><i class="fas fa-paper-plane"></i></button>
+            </form>
+          </div>
+        </div>
+
+        <div class="wrapper-game">
+          <div id="canvasWrap">
+            <canvas
+              id="my-canvas"
+              width="1250"
+              height="1250"
+              style="
+                position: absolute;
+                left: 0;
+                top: 0;
+                border: 5px double #1b1c1d;
+                border-radius: 40px;
+                background: rgba(255, 255, 255, 0.1);
+                z-index: 1;
+              "
+            ></canvas>
+
+            <canvas
+              id="overlay-canvas"
+              width="1250"
+              height="1250"
+              style="
+                position: absolute;
+                left: 0;
+                top: 0;
+                z-index: 2;
+                pointer-events: auto;
+              "
+            ></canvas>
+          </div>
+        </div>
+
+        <div class="controls-sidebar-area">
+          <h4 style="color: white; text-align: center">{{comp}}'s Turn</h4>
+          <counter texto="Time" :coun="time" fill="#ffeb3b"></counter>
+
+          <div
+            style="
+              width: 100%;
+              margin: 20px 0;
+              padding: 10px;
+              background: rgba(0, 0, 0, 0.2);
+              border-radius: 10px;
+            "
+          >
+            <h5 style="color: white; text-align: center">Build</h5>
+            <button
+              @click="houseBuilder"
+              class="btn btn-primary btn-block"
+              style="font-size: 20px; margin-bottom: 10px"
+            >
+              + Boat
+            </button>
+            <button
+              @click="shipBuilder"
+              class="btn btn-success btn-block"
+              style="font-size: 20px"
+            >
+              + Ship
+            </button>
+          </div>
+
+          <counter texto="Points" :coun="points" fill="#4caf50"></counter>
+          <button id="skipBtn" class="btn btn-warning" @click="skipTurn">
+            Skip Turn
+          </button>
+        </div>
+      </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -273,71 +407,98 @@
     <script src="/js/client.js"></script>
 
     <script>
-         function techLog(text){
-            const box = document.getElementById("techBox");
-            if(!box) return;
+      function techLog(text) {
+        const box = document.getElementById("techBox");
+        if (!box) return;
 
-            const line = document.createElement("div");
-            line.className = "techLine";
-            line.textContent = text;
+        const line = document.createElement("div");
+        line.className = "techLine";
+        line.textContent = text;
 
-            box.appendChild(line);
+        box.appendChild(line);
 
-            // nur letzte 5 behalten
-            while(box.children.length > 5){
-                box.removeChild(box.firstChild);
-            }
+        // nur letzte 5 behalten
+        while (box.children.length > 5) {
+          box.removeChild(box.firstChild);
         }
-        
-        function qsParam(name) { return new URLSearchParams(window.location.search).get(name); }
+      }
 
-        var app = new Vue({
-            el: "#app",
-            data: {
-                Wurf: 0, erz: 0, weizen: 0, lehm: 0, schaf: 0, holz: 0, points: 0,
-                userlisto: [], username: qsParam("username") || "", room: qsParam("room") || "",
-                colors: ["red", "green", "blue", "tomato", "pink"],
-                time: 60, recPlayer: 1, roundsLeft: 20
-            },
-            computed: {
-                comp: function () {
-                    return this.userlisto[this.recPlayer - 1] ? this.userlisto[this.recPlayer - 1].username : "...";
-                }
-            },
-            methods: {
-                buyPoints: function () {
-                   if (window.socket) window.socket.emit("buyPoints");
-                },
-                skipTurn: function () {
-                    if (window.socket) {
-                        window.socket.emit("skipTurn");
-                    }
-                },
-                trade: function(give, get) { if (window.socket) window.socket.emit("trade", { giveRes: give, getRes: get, rate: 4 }); },
-                houseBuilder: function () { if (window.houseBuild) window.houseBuild(); },
-                shipBuilder: function () { if (window.shipBuild) window.shipBuild(); },
-                onSubmit: function (e) { if (window.chatten) window.chatten(e); },
-                leave: function () {
-                        if (confirm("Leave game?")) {
-                             if (window.socket) {
-                                window.socket.emit("leaveRoom");
-                            }
+      function qsParam(name) {
+        return new URLSearchParams(window.location.search).get(name);
+      }
 
-                            // 2️⃣ Session löschen (bewusster Exit)
-                            sessionStorage.removeItem("playerId");
-
-                            // 3️⃣ Kurze Verzögerung, damit das Event rausgeht
-                            setTimeout(() => {
-                                window.location = "../index.html";
-                            }, 100);
-                        }
-                    }
+      var app = new Vue({
+        el: "#app",
+        data: {
+          Wurf: 0,
+          erz: 0,
+          weizen: 0,
+          lehm: 0,
+          schaf: 0,
+          holz: 0,
+          points: 0,
+          userlisto: [],
+          username: qsParam("username") || "",
+          room: qsParam("room") || "",
+          colors: ["red", "green", "blue", "tomato", "pink"],
+          time: 60,
+          recPlayer: 1,
+          roundsLeft: 20,
+        },
+        computed: {
+          comp: function () {
+            return this.userlisto[this.recPlayer - 1]
+              ? this.userlisto[this.recPlayer - 1].username
+              : "...";
+          },
+        },
+        methods: {
+          buyPoints: function () {
+            if (window.socket) window.socket.emit("buyPoints");
+          },
+          skipTurn: function () {
+            if (window.socket) {
+              window.socket.emit("skipTurn");
             }
-        });
+          },
+          trade: function (give, get) {
+            if (window.socket)
+              window.socket.emit("trade", {
+                giveRes: give,
+                getRes: get,
+                rate: 4,
+              });
+          },
+          houseBuilder: function () {
+            if (window.houseBuild) window.houseBuild();
+          },
+          shipBuilder: function () {
+            if (window.shipBuild) window.shipBuild();
+          },
+          onSubmit: function (e) {
+            if (window.chatten) window.chatten(e);
+          },
+          leave: function () {
+            if (confirm("Leave game?")) {
+              if (window.socket) {
+                window.socket.emit("leaveRoom");
+              }
 
-        Vue.component('counter', {
-            props: ['texto', 'coun', 'fill', 'textColor'],
-            template: `
+              // 2️⃣ Session löschen (bewusster Exit)
+              sessionStorage.removeItem("playerId");
+
+              // 3️⃣ Kurze Verzögerung, damit das Event rausgeht
+              setTimeout(() => {
+                window.location = "../index.html";
+              }, 100);
+            }
+          },
+        },
+      });
+
+      Vue.component("counter", {
+        props: ["texto", "coun", "fill", "textColor"],
+        template: `
                 <div style="text-align: center;">
                     <h6 style="margin:0; font-size: 12px; color: white; text-transform: uppercase;">{{texto}}</h6>
                     <div class="round-item" style="width:60px; height:60px; margin: 0 auto;">
@@ -345,15 +506,12 @@
                             {{coun}}
                         </div>
                     </div>
-                </div>`
-        });
+                </div>`,
+      });
     </script>
-        <!-- HELP / INSTRUCTIONS BUTTON -->
-    <a href="/rules.html"
-      title="Game Rules & Instructions"
-      class="help-button">
+    <!-- HELP / INSTRUCTIONS BUTTON -->
+    <a href="/rules.html" title="Game Rules & Instructions" class="help-button">
       ?
     </a>
-
-</body>
+  </body>
 </html>

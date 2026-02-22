@@ -1,7 +1,11 @@
 // backend/src/sockets/game.socket.js
 
 const formatMessage = require("../utils/messages");
-const { buildingPossible, findPlacesAroundArea, findHood } = require("../utils/netz");
+const {
+  buildingPossible,
+  findPlacesAroundArea,
+  findHood,
+} = require("../utils/netz");
 const {
   userJoin,
   getCurrentUser,
@@ -34,8 +38,7 @@ function getRoomsSnapshot() {
       room,
       playerCount: s.playerCount ?? 0,
       quantity: s.quantity ?? 0,
-      joinable:
-        !s.gameOver && (s.playerCount ?? 0) < (s.quantity ?? 0), // ✅ joinable false wenn gameOver
+      joinable: !s.gameOver && (s.playerCount ?? 0) < (s.quantity ?? 0), // ✅ joinable false wenn gameOver
     }))
     .sort((a, b) => a.room.localeCompare(b.room));
 }
@@ -47,7 +50,9 @@ function emitRooms(io) {
 // ---------------- SMALL HELPERS ----------------
 
 function sanitizeUsername(name) {
-  return String(name || "Player").trim().slice(0, USERNAME_MAX);
+  return String(name || "Player")
+    .trim()
+    .slice(0, USERNAME_MAX);
 }
 
 function clampInt(n, min, max) {
@@ -145,7 +150,8 @@ module.exports = function registerGameSockets(io) {
     socket.on("trade", ({ giveRes, getRes, rate }, cb) => {
       const user = getCurrentUser(socket.id);
       if (!user) return cb?.({ ok: false, error: "no user" });
-      if (state[user.room]?.gameOver) return cb?.({ ok: false, error: "game_over" });
+      if (state[user.room]?.gameOver)
+        return cb?.({ ok: false, error: "game_over" });
 
       const roomState = state[user.room];
       if (!roomState) return cb?.({ ok: false, error: "no roomState" });
@@ -214,7 +220,8 @@ module.exports = function registerGameSockets(io) {
     socket.on("trade4to1", ({ fromRes, toRes }, cb) => {
       const user = getCurrentUser(socket.id);
       if (!user) return cb?.({ ok: false, error: "no user" });
-      if (state[user.room]?.gameOver) return cb?.({ ok: false, error: "game_over" });
+      if (state[user.room]?.gameOver)
+        return cb?.({ ok: false, error: "game_over" });
 
       const roomState = state[user.room];
       if (!roomState) return cb?.({ ok: false, error: "no roomState" });
@@ -346,35 +353,44 @@ module.exports = function registerGameSockets(io) {
     });
 
     // -------- CREATE ROOM --------
-    socket.on("createRoom", ({ playerId, username, room, quantity, landscape }) => {
-      username = sanitizeUsername(username);
-      quantity = clampInt(quantity, 2, MAX_PLAYERS);
-      console.log("[createRoom] landscape =", landscape);
+    socket.on(
+      "createRoom",
+      ({ playerId, username, room, quantity, landscape }) => {
+        username = sanitizeUsername(username);
+        quantity = clampInt(quantity, 2, MAX_PLAYERS);
+        console.log("[createRoom] landscape =", landscape);
 
-      const res = userJoin(playerId, socket.id, username, room);
-      if (!res.ok) {
-        emitTechToSocket(socket, "ERROR: Already connected in another tab.");
-        return;
-      }
+        const res = userJoin(playerId, socket.id, username, room);
+        if (!res.ok) {
+          emitTechToSocket(socket, "ERROR: Already connected in another tab.");
+          return;
+        }
 
-      socket.join(room);
+        socket.join(room);
 
-      if (res.kind === "new") {
-        const user = res.user;
+        if (res.kind === "new") {
+          const user = res.user;
 
-        state = createState(user, state, room, Number(quantity));
-        map = createMap(map, room, landscape);
+          state = createState(user, state, room, Number(quantity));
+          map = createMap(map, room, landscape);
 
-        socket.emit("message", formatMessage(botName, "Welcome to Sailors & Islands, Creator!"));
-        socket.emit("init", map[room]);
+          socket.emit(
+            "message",
+            formatMessage(botName, "Welcome to Sailors & Islands, Creator!"),
+          );
+          socket.emit("init", map[room]);
 
-        io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
+          io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
 
-        io.to(room).emit("message", formatMessage(botName, `${username} created room "${room}"`));
+          io.to(room).emit(
+            "message",
+            formatMessage(botName, `${username} created room "${room}"`),
+          );
 
-        emitRooms(io);
-      }
-    });
+          emitRooms(io);
+        }
+      },
+    );
 
     // -------- JOIN ROOM --------
     socket.on("joinRoom", ({ playerId, username, room }, cb) => {
@@ -387,7 +403,11 @@ module.exports = function registerGameSockets(io) {
 
       // ✅ immediate reject if gameOver
       if (state[room].gameOver) {
-        cb?.({ ok: false, error: "game_over", payload: state[room].gameOverPayload || null });
+        cb?.({
+          ok: false,
+          error: "game_over",
+          payload: state[room].gameOverPayload || null,
+        });
         socket.emit("leave");
         return;
       }
@@ -426,62 +446,68 @@ module.exports = function registerGameSockets(io) {
 
       cb?.({ ok: true, kind: "new" });
     });
-socket.on("buyPoints", (cb) => {
-  const user = getCurrentUser(socket.id);
-  if (!user) return cb?.({ ok: false, error: "no_user" });
+    socket.on("buyPoints", (cb) => {
+      const user = getCurrentUser(socket.id);
+      if (!user) return cb?.({ ok: false, error: "no_user" });
 
-  const room = user.room;
-  const roomState = state[room];
-  if (!roomState) return cb?.({ ok: false, error: "no_roomState" });
+      const room = user.room;
+      const roomState = state[room];
+      if (!roomState) return cb?.({ ok: false, error: "no_roomState" });
 
-  const mySlot = keyByVal(roomState, user.playerId);
-  if (!mySlot) return cb?.({ ok: false, error: "no_playerNum" });
+      const mySlot = keyByVal(roomState, user.playerId);
+      if (!mySlot) return cb?.({ ok: false, error: "no_playerNum" });
 
-  // ✅ nur aktiver Spieler
-  if (Number(mySlot) !== Number(roomState.activePlayerNumber)) {
-    emitTechToSocket(socket, "Not your turn.");
-    return cb?.({ ok: false, error: "not_your_turn" });
-  }
+      // ✅ nur aktiver Spieler
+      if (Number(mySlot) !== Number(roomState.activePlayerNumber)) {
+        emitTechToSocket(socket, "Not your turn.");
+        return cb?.({ ok: false, error: "not_your_turn" });
+      }
 
-  // optional: im Setup erlauben oder nicht (ich würde erlauben, aber du kannst blocken)
-  // if (roomState.phase === "setup") {
-  //   emitTechToSocket(socket, "Not available during SETUP.");
-  //   return cb?.({ ok: false, error: "setup_blocked" });
-  // }
+      // optional: im Setup erlauben oder nicht (ich würde erlauben, aber du kannst blocken)
+      // if (roomState.phase === "setup") {
+      //   emitTechToSocket(socket, "Not available during SETUP.");
+      //   return cb?.({ ok: false, error: "setup_blocked" });
+      // }
 
-  // Ressourcen-IDs bei dir: 1..5
-  // (du nutzt resName: 1=MUD, 2=WHEAT, 3=SHEEP, 4=WOOD, 5=ORE)
-  const need = 3;
-  const hasAll =
-    roomState[mySlot][1] >= need &&
-    roomState[mySlot][2] >= need &&
-    roomState[mySlot][3] >= need &&
-    roomState[mySlot][4] >= need &&
-    roomState[mySlot][5] >= need;
+      // Ressourcen-IDs bei dir: 1..5
+      // (du nutzt resName: 1=MUD, 2=WHEAT, 3=SHEEP, 4=WOOD, 5=ORE)
+      const need = 3;
+      const hasAll =
+        roomState[mySlot][1] >= need &&
+        roomState[mySlot][2] >= need &&
+        roomState[mySlot][3] >= need &&
+        roomState[mySlot][4] >= need &&
+        roomState[mySlot][5] >= need;
 
-  if (!hasAll) {
-    emitTechToSocket(socket, "Not enough resources: need 3 of EACH resource for +3 points.");
-    return cb?.({ ok: false, error: "not_enough_resources" });
-  }
+      if (!hasAll) {
+        emitTechToSocket(
+          socket,
+          "Not enough resources: need 3 of EACH resource for +3 points.",
+        );
+        return cb?.({ ok: false, error: "not_enough_resources" });
+      }
 
-  // ✅ zahlen
-  roomState[mySlot][1] -= need;
-  roomState[mySlot][2] -= need;
-  roomState[mySlot][3] -= need;
-  roomState[mySlot][4] -= need;
-  roomState[mySlot][5] -= need;
+      // ✅ zahlen
+      roomState[mySlot][1] -= need;
+      roomState[mySlot][2] -= need;
+      roomState[mySlot][3] -= need;
+      roomState[mySlot][4] -= need;
+      roomState[mySlot][5] -= need;
 
-  // ✅ Punkte geben
-  roomState[mySlot].points += 3;
+      // ✅ Punkte geben
+      roomState[mySlot].points += 3;
 
-  // ✅ Feedback nur an den Spieler
-  emitTechToSocket(socket, `CONVERT: Paid 3 of each resource → +3 points (Total: ${roomState[mySlot].points})`);
+      // ✅ Feedback nur an den Spieler
+      emitTechToSocket(
+        socket,
+        `CONVERT: Paid 3 of each resource → +3 points (Total: ${roomState[mySlot].points})`,
+      );
 
-  // state pushen
-  emitGameState(io, room, roomState);
+      // state pushen
+      emitGameState(io, room, roomState);
 
-  cb?.({ ok: true, points: roomState[mySlot].points });
-});
+      cb?.({ ok: true, points: roomState[mySlot].points });
+    });
     // -------- HARD LEAVE (button) --------
     socket.on("leaveRoom", () => {
       const user = getCurrentUser(socket.id);
@@ -493,10 +519,11 @@ socket.on("buyPoints", (cb) => {
       socket.leave(room);
 
       io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
-      
+
       // ✅ if all abandoned -> delete
       const roomUsers = getRoomUsers(room);
-      const allAbandoned = roomUsers.length > 0 && roomUsers.every((u) => u.abandoned === true);
+      const allAbandoned =
+        roomUsers.length > 0 && roomUsers.every((u) => u.abandoned === true);
       if (allAbandoned) {
         cleanupRoom(io, room);
         return;
@@ -525,10 +552,10 @@ socket.on("buyPoints", (cb) => {
       if (state[room]?.gameOver && roomAllUsersOffline(room)) {
         cleanupRoom(io, room);
       }
-        // ✅ NEU: löschen wenn jetzt wirklich alle weg sind (hard ODER soft)
+      // ✅ NEU: löschen wenn jetzt wirklich alle weg sind (hard ODER soft)
       if (roomAllGone(room)) {
-       cleanupRoom(io, room);
-       return;
+        cleanupRoom(io, room);
+        return;
       }
     });
   });
@@ -672,8 +699,7 @@ function buildShip(id, state, user) {
   if (!checkBuildingPossible(id, state, user)) {
     return { ok: false, message: "You cannot build there (distance rule)." };
   }
- if (!checkStandingFree(id, state, user)) {
-  
+  if (!checkStandingFree(id, state, user)) {
     return { ok: false, message: "You cannot build there (distance rule 2)." };
   }
   if (!enoughResourcesShip(state, user)) {
@@ -711,18 +737,22 @@ function buildHouse(id, state, user) {
   }
 
   if (!checkBuildingPossible(id, state, user)) {
-    return { ok: false, message: "You cannot build there (distance/connection rule)." };
+    return {
+      ok: false,
+      message: "You cannot build there (distance/connection rule).",
+    };
   }
   if (!checkStandingFree(id, state, user)) {
-  
     return { ok: false, message: "You cannot build there (distance rule 2)." };
   }
   if (!enoughResourcesHouse(state, user)) {
     return { ok: false, message: "Not enough resources to build a house." };
   }
 
-  if (!roomState.net?.[id]) return { ok: false, message: "Invalid build location." };
-  if (roomState.net[id].value !== 0) return { ok: false, message: "Already occupied." };
+  if (!roomState.net?.[id])
+    return { ok: false, message: "Invalid build location." };
+  if (roomState.net[id].value !== 0)
+    return { ok: false, message: "Already occupied." };
 
   const number = keyByVal(roomState, user.playerId);
   roomState.net[id].playerNumber = Number(number);
@@ -752,7 +782,11 @@ function takeResourcesHouse(state, user) {
 
 function enoughResourcesHouse(state, user) {
   const n = keyByVal(state[user.room], user.playerId);
-  return state[user.room][n][3] >= 2 && state[user.room][n][4] >= 1 && state[user.room][n][5] >= 2;
+  return (
+    state[user.room][n][3] >= 2 &&
+    state[user.room][n][4] >= 1 &&
+    state[user.room][n][5] >= 2
+  );
 }
 
 function checkBuildingPossible(id, state, user) {
@@ -764,20 +798,20 @@ function checkBuildingPossible(id, state, user) {
 }
 
 function checkStandingFree(id, state, user) {
-  const room = user.room
-  const placesToCheck = findHood(id)
+  const room = user.room;
+  const placesToCheck = findHood(id);
 
-  console.log("orte gefunden: ", placesToCheck)
-  let response = true
-  placesToCheck.forEach(id=>{
-    const pn = state[room].net[id].playerNumber
-    if (pn!=0){
-      console.log("Nachbar da. Abbruch")
-      response = false
+  console.log("orte gefunden: ", placesToCheck);
+  let response = true;
+  placesToCheck.forEach((id) => {
+    const pn = state[room].net[id].playerNumber;
+    if (pn != 0) {
+      console.log("Nachbar da. Abbruch");
+      response = false;
     }
-  })
-  
-  return response
+  });
+
+  return response;
 }
 // ================= STATE =================
 
@@ -849,7 +883,8 @@ function advanceTurn(roomState, room) {
     return;
   }
 
-  roomState.activePlayerNumber = (roomState.activePlayerNumber % roomState.quantity) + 1;
+  roomState.activePlayerNumber =
+    (roomState.activePlayerNumber % roomState.quantity) + 1;
 }
 
 function extendState(user, state) {
@@ -923,7 +958,6 @@ function computeGameOverPayload(roomState) {
   };
 }
 
-
 // ================= UTIL =================
 
 function keyByVal(obj, val) {
@@ -948,15 +982,15 @@ function createMap(map, room, landscape) {
   const gen = getLandscapeGenerator(landscape);
 
   for (let i = 1; i < 144; i++) {
-    map[room][i] = gen(i);   // ✅ landscape wird jetzt angewendet
+    map[room][i] = gen(i); // ✅ landscape wird jetzt angewendet
   }
-  
+
   return map;
 }
 
 function getLandscapeGenerator(landscape) {
   const key = String(landscape || "normal").toLowerCase();
-  console.log("erzeugen landscape" + key)
+  console.log("erzeugen landscape" + key);
   switch (key) {
     case "rich":
       return algoRich;
@@ -970,12 +1004,6 @@ function getLandscapeGenerator(landscape) {
   }
 }
 
-function algoNormal() {
-  return {
-    num: Math.floor(Math.random() * 10 + 2),
-    res: Math.floor(Math.random() * 6 + 1),
-  };
-}
 function algoRich() {
   // weighted pick helper (lokal, damit du nichts anderes anlegen musst)
   function pickWeighted(list) {
@@ -991,13 +1019,13 @@ function algoRich() {
 
   // 🎲 Zahlen: selten 2,3,11,12 – häufig 6 & 8
   const num = pickWeighted([
-    { v: 2,  w: 1 },
-    { v: 3,  w: 1 },
-    { v: 4,  w: 3 },
-    { v: 5,  w: 4 },
-    { v: 6,  w: 9 },  // 🔥
-    { v: 8,  w: 9 },  // 🔥
-    { v: 9,  w: 4 },
+    { v: 2, w: 1 },
+    { v: 3, w: 1 },
+    { v: 4, w: 3 },
+    { v: 5, w: 4 },
+    { v: 6, w: 9 }, // 🔥
+    { v: 8, w: 9 }, // 🔥
+    { v: 9, w: 4 },
     { v: 10, w: 3 },
     { v: 11, w: 1 },
     { v: 12, w: 1 },
@@ -1018,7 +1046,7 @@ function algoRich() {
 }
 // Desert: mehr "leer" (res=6) + etwas weniger hohe Zahlen (optional)
 function algoDesert() {
-  console.log("desert")
+  console.log("desert");
   const desertChance = 0.25; // 25% leer
   const isDesert = Math.random() < desertChance;
 
@@ -1050,7 +1078,6 @@ function weightedPick(weights) {
   return weights.length - 1;
 }
 
-
 function distributeResources(roomMap, num, room) {
   const areas = findAreas(roomMap, num);
   areas.forEach(({ index, res }) => {
@@ -1060,11 +1087,12 @@ function distributeResources(roomMap, num, room) {
         if (pn > 0) {
           const gain = state[room].net[p].value;
           state[room][pn][res] += gain;
-          emitTechToPlayer(IO, state[room], pn,
-            `HARVEST: +${state[room].net[p].value} ${resName(res)} (roll ${num})`
+          emitTechToPlayer(
+            IO,
+            state[room],
+            pn,
+            `HARVEST: +${state[room].net[p].value} ${resName(res)} (roll ${num})`,
           );
-
-
         }
       });
     }
@@ -1080,14 +1108,20 @@ function emitTechToPlayer(io, roomState, pn, msg) {
   io.to(u.socketId).emit("tech", msg);
 }
 
-function resName(res) {
-  switch (Number(res)) {
-    case 1: return "MUD";
-    case 2: return "WHEAT";
-    case 3: return "SHEEP";
-    case 4: return "WOOD";
-    case 5: return "ORE";
-    default: return "UNKNOWN";
+function resName(id) {
+  switch (Number(id)) {
+    case 1:
+      return "METALS"; // Erz
+    case 2:
+      return "GRAINS"; // Weizen
+    case 3:
+      return "MUD"; // Lehm -> Jetzt auf der 3!
+    case 4:
+      return "SHEEP"; // Schaf
+    case 5:
+      return "WOOD"; // Holz
+    default:
+      return "UNKNOWN";
   }
 }
 
@@ -1103,13 +1137,13 @@ function emitGameState(io, room, gameState) {
 
 function algoNormal() {
   return {
-    num: Math.floor(Math.random() * 10 + 2),
+    num: Math.floor(Math.random() * 11 + 2),
     res: Math.floor(Math.random() * 6 + 1),
   };
 }
 
 function color(n) {
-  return ["pink",  "lightblue", "lightgreen", "yellow" ][n - 1] || "gray";
+  return ["pink", "lightblue", "lightgreen", "yellow"][n - 1] || "gray";
 }
 
 function roomAllGone(room) {
@@ -1119,6 +1153,7 @@ function roomAllGone(room) {
   if (!roomUsers || roomUsers.length === 0) return true;
 
   // ✅ "egal welcher leave": abandoned ODER offline zählt als weg
-  return roomUsers.every(u => u && (u.abandoned === true || u.isOnline === false));
+  return roomUsers.every(
+    (u) => u && (u.abandoned === true || u.isOnline === false),
+  );
 }
-
