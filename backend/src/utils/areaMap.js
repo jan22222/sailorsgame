@@ -23,7 +23,7 @@ function netzErzeugen() {
       i <= 20 + (iteration - 1) * 40;
       i += 2
     ) {
-      netz[String(i)] = [wert, wert + 1, wert + 11];
+      netz[String(i)] = [wert, wert + 1, wert + 12];
       wert += 1;
     }
 
@@ -58,5 +58,5 @@ function netzErzeugen() {
 }
 
 const netz = netzErzeugen();
-
+console.log(netz);
 module.exports = netz;
