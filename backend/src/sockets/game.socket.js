@@ -1001,6 +1001,8 @@ function getLandscapeGenerator(landscape) {
   const key = String(landscape || "normal").toLowerCase();
   console.log("erzeugen landscape" + key);
   switch (key) {
+    case "gebirge":
+      return algoGebirge;
     case "rich":
       return algoRich;
     case "desert":
@@ -1076,7 +1078,16 @@ function algoIsland() {
     res,
   };
 }
+function algoGebirge() {
+  // weights: [mud,wheat,sheep,wood,ore,empty]
+  const weights = [3, 0.2, 1, 1, 3, 0];
+  const res = weightedPick(weights) + 1; // -> 1..6
 
+  return {
+    num: Math.floor(Math.random() * 11 + 2),
+    res,
+  };
+}
 function weightedPick(weights) {
   const sum = weights.reduce((a, b) => a + b, 0);
   let r = Math.random() * sum;
