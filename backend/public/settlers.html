@@ -175,20 +175,38 @@
       #techBox {
         position: fixed;
         right: 12px;
-        bottom: 80px; /* Platz für Skip Button */
-
+        bottom: 80px;
         width: 320px;
-        height: 140px; /* feste Höhe */
-        overflow: hidden;
+
+        /* WICHTIG: Feste Höhe und Scroll-Verhalten */
+        height: 200px;
+        overflow-y: auto;
+        overflow-x: hidden; /* Verhindert horizontales Scrollen */
 
         background: #001a00;
         border: 2px solid #00ff66;
         color: #00ff66;
         font-family: monospace;
         font-size: 13px;
-
         padding: 8px;
         box-shadow: 0 0 10px #00ff66;
+        z-index: 9999;
+
+        /* Sorgt für einen schöneren Scrollbalken in Chrome/Safari */
+        scrollbar-width: thin;
+        scrollbar-color: #00ff66 #001a00;
+      }
+
+      /* Scrollbalken-Styling für Chrome/Edge/Safari */
+      #techBox::-webkit-scrollbar {
+        width: 6px;
+      }
+      #techBox::-webkit-scrollbar-track {
+        background: #001a00;
+      }
+      #techBox::-webkit-scrollbar-thumb {
+        background-color: #00ff66;
+        border-radius: 10px;
       }
       .techLine {
         margin-bottom: 4px;
@@ -413,14 +431,17 @@
 
         const line = document.createElement("div");
         line.className = "techLine";
-        line.textContent = text;
+        line.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
 
         box.appendChild(line);
 
-        // nur letzte 5 behalten
-        while (box.children.length > 5) {
+        // Erhöhe das Limit, damit man eine Historie hat (z.B. 100 Zeilen)
+        while (box.children.length > 100) {
           box.removeChild(box.firstChild);
         }
+
+        // ✅ AUTOMATISCH NACH UNTEN SCROLLEN
+        box.scrollTop = box.scrollHeight;
       }
 
       function qsParam(name) {

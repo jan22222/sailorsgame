@@ -515,18 +515,27 @@ module.exports = function registerGameSockets(io) {
 
       const room = user.room;
 
+      // 1. User als abandoned markieren
       markAbandoned(user);
       socket.leave(room);
 
+      // 2. Die verbleibenden Nutzer informieren
       io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
 
-      // ✅ if all abandoned -> delete
-      const roomUsers = getRoomUsers(room);
-      const allAbandoned =
-        roomUsers.length > 0 && roomUsers.every((u) => u.abandoned === true);
-      if (allAbandoned) {
-        cleanupRoom(io, room);
-        return;
+      // 3. Erst den Gewinner-Check!
+      // Falls jemand gewonnen hat, übernimmt diese Funktion das spätere Cleanup
+      const wonByAbandon = checkWinnerByAbandon(room, io);
+
+      // 4. Cleanup nur, wenn KEINER mehr da ist UND kein Sieg-Szenario läuft
+      if (!wonByAbandon) {
+        const roomUsers = getRoomUsers(room);
+        const allAbandoned =
+          roomUsers.length === 0 ||
+          roomUsers.every((u) => u.abandoned === true);
+
+        if (allAbandoned) {
+          cleanupRoom(io, room);
+        }
       }
 
       emitRooms(io);
@@ -1156,4 +1165,39 @@ function roomAllGone(room) {
   return roomUsers.every(
     (u) => u && (u.abandoned === true || u.isOnline === false),
   );
+}
+function checkWinnerByAbandon(room, io) {
+  const roomState = state[room];
+  if (!roomState) return false;
+
+  const roomUsers = getRoomUsers(room);
+  const activePlayers = roomUsers.filter((u) => !u.abandoned);
+
+  // Fall: Genau ein Spieler ist noch aktiv
+  if (activePlayers.length === 1) {
+    const winner = activePlayers[0];
+    const winnerSlot = winner.slot; // oder wie du die Slot-Nummer speicherst
+
+    // Nachricht an den letzten Spieler
+    io.to(room).emit(
+      "gameOver",
+      JSON.stringify({
+        winnerNumber: winnerSlot,
+        winnerNames: [winner.username],
+        reason: "Alle anderen Kapitäne haben das Schiff verlassen!",
+      }),
+    );
+
+    // WICHTIG: Raum erst nach einem Timeout löschen
+    setTimeout(() => {
+      if (state[room]) {
+        console.log(`Cleanup: Raum ${room} nach Sieg durch Aufgabe gelöscht.`);
+        cleanupRoom(io, room);
+      }
+    }, 3000); // 3 Sekunden Zeit für den Alert beim Client
+
+    return true; // Sieg wurde eingeleitet
+  }
+
+  return false; // Kein Sieg-Szenario
 }

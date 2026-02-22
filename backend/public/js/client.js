@@ -100,34 +100,58 @@ function runEnterFlow() {
   );
 }
 socket.on("gameOver", (raw) => {
-  let p = {};
+  let data = {};
   try {
-    p = JSON.parse(raw);
-  } catch {}
+    data = JSON.parse(raw);
+  } catch (e) {
+    console.error("Fehler beim Parsen von gameOver:", e);
+  }
 
-  const winner = p.draw
-    ? "DRAW"
-    : p.winnerNames?.[0] || `Player ${p.winnerNumber}`;
+  const winnerName = data.winnerNames?.[0] || `Spieler ${data.winnerNumber}`;
+  const isMe = data.winnerNames?.includes(username); // 'username' ist deine globale Variable aus den URL-Params
 
-  const best = p.bestPoints ?? "?";
+  // --- FALLUNTERSCHEIDUNG ---
 
-  const lines = [];
-  if (Array.isArray(p.scores) && p.scores.length) {
-    lines.push("SCORES:");
-    for (const s of p.scores) {
-      lines.push(`${s.name}: ${s.points}`);
+  if (data.reason && data.reason.includes("verlassen")) {
+    // FALL A: Sieg durch Aufgabe (Abandoned)
+    if (isMe) {
+      alert(
+        `🏆 SIEG DURCH AUFGABE!\n\nAlle anderen Spieler sind geflohen. Du bist der alleinige Herrscher über die Inseln!`,
+      );
+    } else {
+      // Dieser Fall sollte selten sein, falls man selbst gerade geht
+      alert(
+        `Das Spiel wurde beendet.\nGewinner: ${winnerName}\nGrund: ${data.reason}`,
+      );
+    }
+  } else {
+    // FALL B: Regulärer Sieg durch Punkte
+    const scoreInfo = data.scores
+      ? "\n\nEndstand:\n" +
+        data.scores.map((s) => `${s.name}: ${s.points} Pkt`).join("\n")
+      : "";
+
+    if (isMe) {
+      alert(
+        `🎉 GRATULATION!\n\nDu hast die erforderlichen Punkte erreicht und gewonnen!${scoreInfo}`,
+      );
+    } else {
+      alert(
+        `SPIEL BEENDET\n\n${winnerName} hat den Sieg errungen!${scoreInfo}`,
+      );
     }
   }
 
-  alert(
-    `GAME OVER\nWinner: ${winner}\nWinning points: ${best}\n\n` +
-      (lines.length ? lines.join("\n") : ""),
-  );
+  // --- CLEANUP & EXIT ---
+  console.log("[client] Game Over. Verlasse Raum...");
 
-  // hard leave
   if (window.socket) window.socket.emit("leaveRoom");
   sessionStorage.removeItem("playerId");
-  window.location = "../index.html";
+
+  // Kurzer Delay für das visuelle Feedback, bevor wir zur Lobby umleiten
+  setTimeout(() => {
+    window.location.href = "../index.html";
+  }, 5000);
 });
 
 // ✅ WICHTIG: bei JEDEM connect enter erneut starten
