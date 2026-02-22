@@ -1060,7 +1060,7 @@ function algoDesert() {
   const isDesert = Math.random() < desertChance;
 
   return {
-    num: Math.floor(Math.random() * 10 + 2),
+    num: Math.floor(Math.random() * 11 + 2),
     res: isDesert ? 7 : Math.floor(Math.random() * 5 + 1), // 1..5 Ressourcen, 6=leer
   };
 }
@@ -1072,7 +1072,7 @@ function algoIsland() {
   const res = weightedPick(weights) + 1; // -> 1..6
 
   return {
-    num: Math.floor(Math.random() * 10 + 2),
+    num: Math.floor(Math.random() * 11 + 2),
     res,
   };
 }
