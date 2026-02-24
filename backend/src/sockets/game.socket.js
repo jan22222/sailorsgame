@@ -648,8 +648,8 @@ function gameLoop(io, room, roomState, map) {
 }
 
 function roll2to12() {
-  let num1 = Math.floor(Math.random() * 5) + 1;
-  let num2 = Math.floor(Math.random() * 5) + 1;
+  let num1 = Math.floor(Math.random() * 6) + 1;
+  let num2 = Math.floor(Math.random() * 6) + 1;
 
   return num1 + num2;
 }
