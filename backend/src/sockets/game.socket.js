@@ -648,7 +648,10 @@ function gameLoop(io, room, roomState, map) {
 }
 
 function roll2to12() {
-  return Math.floor(Math.random() * 11) + 2;
+  let num1 = Math.floor(Math.random() * 5) + 1;
+  let num2 = Math.floor(Math.random() * 5) + 1;
+
+  return num1 + num2;
 }
 
 function neuerWurf(roomState, map, room) {
@@ -1118,6 +1121,7 @@ function distributeResources(roomMap, num, room) {
     }
   });
 }
+
 function emitTechToPlayer(io, roomState, pn, msg) {
   const playerId = roomState?.[pn]?.playerId;
   if (!playerId) return;
@@ -1177,6 +1181,7 @@ function roomAllGone(room) {
     (u) => u && (u.abandoned === true || u.isOnline === false),
   );
 }
+
 function checkWinnerByAbandon(room, io) {
   const roomState = state[room];
   if (!roomState) return false;
