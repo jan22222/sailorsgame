@@ -463,36 +463,19 @@ module.exports = function registerGameSockets(io) {
         return cb?.({ ok: false, error: "not_your_turn" });
       }
 
-      // optional: im Setup erlauben oder nicht (ich würde erlauben, aber du kannst blocken)
-      // if (roomState.phase === "setup") {
-      //   emitTechToSocket(socket, "Not available during SETUP.");
-      //   return cb?.({ ok: false, error: "setup_blocked" });
-      // }
-
-      // Ressourcen-IDs bei dir: 1..5
-      // (du nutzt resName: 1=MUD, 2=WHEAT, 3=SHEEP, 4=WOOD, 5=ORE)
-      const need = 3;
-      const hasAll =
-        roomState[mySlot][1] >= need &&
-        roomState[mySlot][2] >= need &&
-        roomState[mySlot][3] >= need &&
-        roomState[mySlot][4] >= need &&
-        roomState[mySlot][5] >= need;
+      const need = 6;
+      const hasAll = roomState[mySlot][1] >= need;
 
       if (!hasAll) {
         emitTechToSocket(
           socket,
-          "Not enough resources: need 3 of EACH resource for +3 points.",
+          "Not enough resources: need 6 of ore for +3 points.",
         );
         return cb?.({ ok: false, error: "not_enough_resources" });
       }
 
       // ✅ zahlen
       roomState[mySlot][1] -= need;
-      roomState[mySlot][2] -= need;
-      roomState[mySlot][3] -= need;
-      roomState[mySlot][4] -= need;
-      roomState[mySlot][5] -= need;
 
       // ✅ Punkte geben
       roomState[mySlot].points += 3;
@@ -500,7 +483,7 @@ module.exports = function registerGameSockets(io) {
       // ✅ Feedback nur an den Spieler
       emitTechToSocket(
         socket,
-        `CONVERT: Paid 3 of each resource → +3 points (Total: ${roomState[mySlot].points})`,
+        `CONVERT: Paid 6 of ore → +3 points (Total: ${roomState[mySlot].points})`,
       );
 
       // state pushen
@@ -508,6 +491,7 @@ module.exports = function registerGameSockets(io) {
 
       cb?.({ ok: true, points: roomState[mySlot].points });
     });
+
     // -------- HARD LEAVE (button) --------
     socket.on("leaveRoom", () => {
       const user = getCurrentUser(socket.id);
