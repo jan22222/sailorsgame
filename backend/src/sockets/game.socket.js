@@ -1075,6 +1075,12 @@ function algoGebirge() {
       res,
     };
   }
+  if (res == 2) {
+    return {
+      num: 8,
+      res,
+    };
+  }
   return {
     num: Math.floor(Math.random() * 11 + 2),
     res,
