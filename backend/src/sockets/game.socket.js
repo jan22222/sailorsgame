@@ -441,7 +441,7 @@ module.exports = function registerGameSockets(io) {
 
       socket.emit("init", map[room]);
       io.to(room).emit("roomUsers", { room, users: getRoomUsers(room) });
-
+      emitRooms(io);
       if (teamComplete(state[room])) startGameInterval(io, room, map);
 
       cb?.({ ok: true, kind: "new" });
@@ -559,7 +559,7 @@ module.exports = function registerGameSockets(io) {
 function startGameInterval(io, room, map) {
   console.log("[game] start game interval -> active");
   gameActive = true;
-
+  emitRooms(io);
   if (!state[room]) return;
 
   if (roomIntervals[room]) {

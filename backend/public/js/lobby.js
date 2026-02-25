@@ -20,13 +20,15 @@ function renderRooms(rooms) {
 
   $roomsList.innerHTML = rooms
     .map((r) => {
-      const label = `${escapeHtml(r.room)} (${r.playerCount}/${r.quantity})`;
-      return `
-        <button class="btn" style="width:100%; text-align:left;"
-          data-room="${escapeAttr(r.room)}">
-          Join ${label}
-        </button>
-      `;
+      if (r.joinable) {
+        const label = `${escapeHtml(r.room)} (${r.playerCount}/${r.quantity})`;
+        return `
+          <button class="btn" style="width:100%; text-align:left;"
+            data-room="${escapeAttr(r.room)}">
+            Join ${label}
+          </button>
+        `;
+      }
     })
     .join("");
 
