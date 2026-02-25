@@ -1069,7 +1069,12 @@ function algoGebirge() {
   // weights: [mud,wheat,sheep,wood,ore,empty]
   const weights = [3, 0.2, 1, 1, 3, 0];
   const res = weightedPick(weights) + 1; // -> 1..6
-
+  if (res == 1) {
+    return {
+      num: 6,
+      res,
+    };
+  }
   return {
     num: Math.floor(Math.random() * 11 + 2),
     res,
